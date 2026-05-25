@@ -7,7 +7,7 @@ const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
 // Token received from @BotFather
-const token = process.env.BOT_TOKEN || 'your-telegram-bot-token-here';
+const token = process.env.BOT_TOKEN || '8944446174:AAFPpBH-F8b8DE5epyY-t7Bqi_lXJdNwDKw';
 const webAppUrl = process.env.WEB_APP_URL || 'https://know-hub-ethiopia.vercel.app/';
 
 // Initialize bot
@@ -104,12 +104,12 @@ bot.onText(/\/help/, (msg) => {
 // Capture general messages
 bot.on('message', (msg) => {
   const text = msg.text;
-  
+
   // Skip command structures
   if (text && text.startsWith('/')) return;
 
   const chatId = msg.chat.id;
   const responseText = `I'm a helper bot designed to launch the KnowHub Mini App! Click the button below to get started:`;
-  
+
   bot.sendMessage(chatId, responseText, getMainKeyboard());
 });
