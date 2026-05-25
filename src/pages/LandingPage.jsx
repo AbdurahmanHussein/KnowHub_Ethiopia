@@ -7,16 +7,16 @@ import TestimonialSlider from '../components/TestimonialSlider';
 import CTASection from '../components/CTASection';
 import Footer from '../components/Footer';
 
-export default function LandingPage({ isTelegram }) {
+export default function LandingPage({ isTelegram, onEnterApp }) {
   return (
     <div style={{ minHeight: '100vh' }}>
-      <Navbar />
-      <HeroSection isTelegram={isTelegram} />
+      <Navbar onEnterApp={onEnterApp} />
+      <HeroSection isTelegram={isTelegram} onEnterApp={onEnterApp} />
       <StatsBar />
       <FeaturesGrid />
       <HowItWorks />
       <TestimonialSlider />
-      <CTASection />
+      <CTASection onEnterApp={onEnterApp} />
       <Footer />
     </div>
   );

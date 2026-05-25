@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { ArrowRight, Send } from 'lucide-react';
 
-export default function HeroSection({ isTelegram }) {
+export default function HeroSection({ isTelegram, onEnterApp }) {
   const heroRef = useRef(null);
 
   useEffect(() => {
@@ -186,7 +186,7 @@ export default function HeroSection({ isTelegram }) {
           animation: 'fadeInUp 0.9s ease 0.45s both',
         }}>
           <button
-            onClick={() => scrollToSection('#features')}
+            onClick={onEnterApp}
             style={{
               display: 'flex',
               alignItems: 'center',

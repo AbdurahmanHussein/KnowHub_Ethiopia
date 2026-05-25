@@ -1,9 +1,19 @@
+import { useState, useEffect } from 'react';
 import { useTelegram } from './hooks/useTelegram';
 import LandingPage from './pages/LandingPage';
+import Dashboard from './pages/Dashboard';
 import './index.css';
 
 export default function App() {
-  const { isTelegram, isReady } = useTelegram();
+  const { isTelegram, user, isReady } = useTelegram();
+  const [isInApp, setIsInApp] = useState(false);
+
+  // Automatically enter the app if running inside Telegram Mini App environment
+  useEffect(() => {
+    if (isReady && isTelegram) {
+      setIsInApp(true);
+    }
+  }, [isReady, isTelegram]);
 
   if (!isReady) {
     return (
@@ -41,5 +51,20 @@ export default function App() {
     );
   }
 
-  return <LandingPage isTelegram={isTelegram} />;
+  if (isInApp) {
+    return (
+      <Dashboard 
+        isTelegram={isTelegram} 
+        user={user} 
+        onBackToLanding={() => setIsInApp(false)} 
+      />
+    );
+  }
+
+  return (
+    <LandingPage 
+      isTelegram={isTelegram} 
+      onEnterApp={() => setIsInApp(true)} 
+    />
+  );
 }

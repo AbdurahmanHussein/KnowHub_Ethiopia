@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ArrowRight, Sparkles } from 'lucide-react';
 
-export default function CTASection() {
+export default function CTASection({ onEnterApp }) {
   const [visible, setVisible] = useState(false);
   const ref = useRef(null);
 
@@ -131,6 +131,7 @@ export default function CTASection() {
             position: 'relative',
           }}>
             <button
+              onClick={onEnterApp}
               style={{
                 display: 'flex',
                 alignItems: 'center',

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Menu, X, Sparkles } from 'lucide-react';
 
-export default function Navbar() {
+export default function Navbar({ onEnterApp }) {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const navRef = useRef(null);
@@ -140,7 +140,7 @@ export default function Navbar() {
               </a>
             ))}
             <button
-              onClick={() => scrollToSection('#cta')}
+              onClick={onEnterApp}
               style={{
                 background: 'var(--gradient-warm)',
                 color: '#fff',
@@ -224,7 +224,7 @@ export default function Navbar() {
           </a>
         ))}
         <button
-          onClick={() => scrollToSection('#cta')}
+          onClick={onEnterApp}
           style={{
             background: 'var(--gradient-warm)',
             color: '#fff',
