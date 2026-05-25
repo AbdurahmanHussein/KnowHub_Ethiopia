@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS resources (
   title TEXT NOT NULL,
   category TEXT NOT NULL,
   subject TEXT NOT NULL,
-  size TEXT NOT NULL,
+  size TEXT,
   pages INTEGER,
   slides INTEGER,
   source TEXT,

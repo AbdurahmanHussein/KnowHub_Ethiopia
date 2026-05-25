@@ -291,12 +291,12 @@ export const api = {
         city: s.city,
         region: s.region,
         curriculum: s.curriculum,
-        rating: s.rating,
-        established: s.established,
-        student_count: s.studentCount,
-        phone: s.phone,
-        email: s.email,
-        description: s.description
+        rating: s.rating || 0,
+        established: s.established || null,
+        student_count: s.studentCount || null,
+        phone: s.phone || null,
+        email: s.email || null,
+        description: s.description || null
       }));
       // Clear current to prevent duplicates, then insert
       await supabase.from('schools').delete().neq('id', 'placeholder');
@@ -313,9 +313,9 @@ export const api = {
         amount: s.amount,
         eligibility: s.eligibility,
         deadline: s.deadline,
-        description: s.description,
-        link: s.link,
-        requirements: s.requirements
+        description: s.description || null,
+        link: s.link || null,
+        requirements: s.requirements || []
       }));
       await supabase.from('scholarships').delete().neq('id', 'placeholder');
       const { error: scholErr } = await supabase.from('scholarships').insert(dbScholarships);
@@ -331,9 +331,9 @@ export const api = {
         description: o.description,
         deadline: o.deadline,
         duration: o.duration,
-        link: o.link,
-        required_skills: o.requiredSkills,
-        posted_date: o.postedDate
+        link: o.link || null,
+        required_skills: o.requiredSkills || [],
+        posted_date: o.postedDate || null
       }));
       await supabase.from('opportunities').delete().neq('id', 'placeholder');
       const { error: oppErr } = await supabase.from('opportunities').insert(dbOpportunities);
@@ -350,7 +350,7 @@ export const api = {
         platform: s.platform,
         description: s.description,
         link: s.link,
-        why_useful: s.whyUseful
+        why_useful: s.whyUseful || null
       }));
       await supabase.from('skills').delete().neq('id', 'placeholder');
       const { error: skillErr } = await supabase.from('skills').insert(dbSkills);
@@ -363,12 +363,12 @@ export const api = {
         title: r.title,
         category: r.category,
         subject: r.subject,
-        size: r.size,
-        pages: r.pages,
-        slides: r.slides,
-        source: r.source,
-        description: r.description,
-        download_count: r.downloadCount
+        size: r.size || null,
+        pages: r.pages || null,
+        slides: r.slides || null,
+        source: r.source || null,
+        description: r.description || null,
+        download_count: r.downloadCount || 0
       }));
       await supabase.from('resources').delete().neq('id', 'placeholder');
       const { error: resErr } = await supabase.from('resources').insert(dbResources);
