@@ -65,15 +65,23 @@ const quizQuestions = {
 
 export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding }) {
   const [activeTab, setActiveTab] = useState('home');
+  const [exploreTab, setExploreTab] = useState('schools');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   // Handle bot deep-linking / tab query parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get('tab');
-    const validTabs = ['home', 'schools', 'scholarships', 'opportunities', 'skills', 'testprep', 'resources', 'aitutor', 'progress', 'settings', 'admin'];
-    if (tabParam && validTabs.includes(tabParam.toLowerCase())) {
-      setActiveTab(tabParam.toLowerCase());
+    const tabParam = params.get('tab')?.toLowerCase();
+    const validMainTabs = ['home', 'resources', 'aitutor', 'progress', 'settings', 'admin'];
+    const validExploreTabs = ['schools', 'scholarships', 'opportunities', 'skills', 'testprep'];
+    
+    if (tabParam) {
+      if (validMainTabs.includes(tabParam)) {
+        setActiveTab(tabParam);
+      } else if (validExploreTabs.includes(tabParam)) {
+        setActiveTab('explore');
+        setExploreTab(tabParam);
+      }
     }
   }, []);
   
@@ -218,12 +226,16 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
       root.style.setProperty('--color-card', '#1E1E1E');
       root.style.setProperty('--color-surface', '#242424');
       root.style.setProperty('--color-border', '#333333');
+      root.style.setProperty('--color-glass-bg', 'rgba(30, 30, 30, 0.65)');
+      root.style.setProperty('--color-glass-border', 'rgba(255, 255, 255, 0.1)');
     } else {
       root.style.setProperty('--color-light', '#F8F6F1');
       root.style.setProperty('--color-dark', '#1A1A1A');
       root.style.setProperty('--color-card', '#FFFFFF');
       root.style.setProperty('--color-surface', '#FDF9F3');
       root.style.setProperty('--color-border', '#E8DCC8');
+      root.style.setProperty('--color-glass-bg', 'rgba(255, 255, 255, 0.65)');
+      root.style.setProperty('--color-glass-border', 'rgba(255, 255, 255, 0.35)');
     }
   }, [theme]);
 
@@ -680,12 +692,12 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               { emoji: '⏱️', label: 'Hours Studied', value: `${hoursStudied}h`, color: 'var(--color-secondary)' },
               { emoji: '💖', label: 'Bookmarks', value: `${bookmarks.length} Items`, color: 'var(--color-accent)' }
             ].map(stat => (
-              <div key={stat.label} className="hover-lift" style={{
-                background: 'var(--color-card)',
-                border: '1px solid var(--color-border)',
+              <div key={stat.label} className="glass-card hover-lift" style={{
                 borderRadius: 'var(--radius-md)',
                 padding: 20, textAlign: 'center',
-                boxShadow: 'var(--shadow-sm)'
+                boxShadow: 'var(--shadow-sm)',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-card)'
               }}>
                 <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}>{stat.emoji}</span>
                 <span style={{ fontSize: 12, color: 'var(--color-muted)', display: 'block' }}>{stat.label}</span>
@@ -704,12 +716,21 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             {[
               { id: 'schools', title: 'Discover Schools', desc: 'Browse 20+ top high schools and public universities inside Ethiopia.', icon: <GraduationCap size={24} color="#fff" />, color: 'var(--color-primary)' },
               { id: 'scholarships', title: 'Scholarships', desc: 'Unlock active funding programs tailored for East African students.', icon: <Compass size={24} color="#fff" />, color: 'var(--color-secondary)' },
-              { id: 'testprep', title: 'Language Tests', desc: 'Full instructions and practice quizzes for IELTS, TOEFL, and DET.', icon: <Award size={24} color="#fff" />, color: 'var(--color-success)' },
+              { id: 'opportunities', title: 'Extracurriculars', desc: 'STEM bootcamps, Olympiads, and leadership youth programs.', icon: <Award size={24} color="#fff" />, color: 'var(--color-success)' },
+              { id: 'skills', title: 'Skill Development', desc: 'Acquire high-demand technical and business skills for free.', icon: <Lightbulb size={24} color="#fff" />, color: 'var(--color-success-light)' },
+              { id: 'testprep', title: 'Language Tests', desc: 'Full instructions and practice quizzes for IELTS, TOEFL, and DET.', icon: <FileText size={24} color="#fff" />, color: 'var(--color-info)' },
               { id: 'aitutor', title: 'AI Study Assistant', desc: 'Chat with Gemini-powered virtual tutor for educational answers.', icon: <Sparkles size={24} color="#fff" />, color: 'var(--color-accent)' },
             ].map(f => (
               <div 
                 key={f.id} 
-                onClick={() => setActiveTab(f.id)}
+                onClick={() => {
+                  if (f.id === 'aitutor') {
+                    setActiveTab('aitutor');
+                  } else {
+                    setActiveTab('explore');
+                    setExploreTab(f.id);
+                  }
+                }}
                 style={{
                   background: 'var(--color-card)',
                   border: '1px solid var(--color-border)',
@@ -718,7 +739,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                   transition: 'all 0.3s ease',
                   position: 'relative'
                 }}
-                className="hover-lift"
+                className="glass-card hover-lift"
               >
                 <div style={{
                   width: 44, height: 44, borderRadius: 10,
@@ -756,7 +777,10 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               </p>
             </div>
             <button 
-              onClick={() => setActiveTab('testprep')}
+              onClick={() => {
+                setActiveTab('explore');
+                setExploreTab('testprep');
+              }}
               style={{
                 alignSelf: 'flex-start',
                 background: 'var(--color-secondary)',
@@ -1979,6 +2003,109 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     );
   };
 
+  // 12. Explore Hub Tab (Phase 3)
+  const renderExplore = () => {
+    return (
+      <div className="animate-fade-in" style={{ padding: '0 0 40px' }}>
+        {/* Explore Hub Header */}
+        <div style={{
+          background: 'linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary-dark) 100%)',
+          color: '#fff',
+          padding: '30px 24px',
+          borderRadius: '0 0 var(--radius-xl) var(--radius-xl)',
+          boxShadow: 'var(--shadow-md)',
+          position: 'relative',
+          overflow: 'hidden',
+          marginBottom: 32
+        }}>
+          <div style={{
+            position: 'absolute',
+            width: 200, height: 200,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(214, 103, 46, 0.2) 0%, transparent 75%)',
+            top: '-20%', right: '-10%'
+          }} />
+          <div style={{ position: 'relative', zIndex: 2 }}>
+            <h1 style={{
+              fontSize: 'clamp(22px, 3.5vw, 32px)',
+              fontWeight: 800,
+              fontFamily: 'var(--font-display)',
+              marginBottom: 6, lineHeight: 1.2
+            }}>
+              Explore Database Hub
+            </h1>
+            <p style={{
+              fontSize: 13,
+              color: 'rgba(255, 255, 255, 0.75)',
+              maxWidth: 480, lineHeight: 1.5, margin: 0
+            }}>
+              Access all catalog databases for schools, funding, STEM bootcamps, free skills courses, and English test preparations.
+            </p>
+          </div>
+        </div>
+
+        {/* Explore Tabs Navigation */}
+        <div style={{ padding: '0 24px', marginBottom: 28 }}>
+          <div className="glass-card" style={{
+            padding: 6,
+            borderRadius: 'var(--radius-full)',
+            display: 'flex',
+            gap: 4,
+            overflowX: 'auto',
+            scrollbarWidth: 'none',
+            border: '1px solid var(--color-border)',
+            background: 'var(--color-card)'
+          }}>
+            {[
+              { id: 'schools', label: 'Schools', icon: <GraduationCap size={16} /> },
+              { id: 'scholarships', label: 'Scholarships', icon: <Compass size={16} /> },
+              { id: 'opportunities', label: 'Opportunities', icon: <Award size={16} /> },
+              { id: 'skills', label: 'Skills', icon: <Lightbulb size={16} /> },
+              { id: 'testprep', label: 'Test Prep', icon: <FileText size={16} /> },
+            ].map(tab => {
+              const isSel = exploreTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setExploreTab(tab.id)}
+                  style={{
+                    flex: '1 0 auto',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    padding: '10px 18px',
+                    borderRadius: 'var(--radius-full)',
+                    background: isSel ? 'var(--color-primary)' : 'transparent',
+                    color: isSel ? '#fff' : 'var(--color-dark)',
+                    fontWeight: 700,
+                    fontSize: 12.5,
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    boxShadow: isSel ? 'var(--shadow-md)' : 'none'
+                  }}
+                  className={isSel ? 'hover-glow' : 'hover-lift'}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Tab content */}
+        <div>
+          {exploreTab === 'schools' && renderSchools()}
+          {exploreTab === 'scholarships' && renderScholarships()}
+          {exploreTab === 'opportunities' && renderOpportunities()}
+          {exploreTab === 'skills' && renderSkills()}
+          {exploreTab === 'testprep' && renderTestPrep()}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{
       background: 'var(--color-light)',
@@ -1988,13 +2115,15 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
       display: 'flex', flexDirection: 'column'
     }}>
       {/* Top Header Navigation Bar */}
-      <header style={{
-        background: 'var(--color-card)',
-        borderBottom: '1px solid var(--color-border)',
-        padding: '16px 24px',
+      <header className="glass-card" style={{
         position: 'sticky', top: 0, zIndex: 90,
+        padding: '16px 24px',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        boxShadow: 'var(--shadow-sm)'
+        borderBottom: '1px solid var(--color-border)',
+        boxShadow: 'var(--shadow-sm)',
+        background: theme === 'dark' ? 'rgba(30, 30, 30, 0.7)' : 'rgba(255, 255, 255, 0.7)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{
@@ -2055,11 +2184,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
         ) : (
           <>
             {activeTab === 'home' && renderHome()}
-            {activeTab === 'schools' && renderSchools()}
-            {activeTab === 'scholarships' && renderScholarships()}
-            {activeTab === 'opportunities' && renderOpportunities()}
-            {activeTab === 'skills' && renderSkills()}
-            {activeTab === 'testprep' && renderTestPrep()}
+            {activeTab === 'explore' && renderExplore()}
             {activeTab === 'resources' && renderResources()}
             {activeTab === 'aitutor' && renderAiTutor()}
             {activeTab === 'progress' && renderProgress()}
@@ -2070,17 +2195,19 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
       </main>
 
       {/* Fixed Bottom Mobile Navigation Bar */}
-      <nav style={{
+      <nav className="glass-card" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'var(--color-card)',
-        borderTop: '1px solid var(--color-border)',
         display: 'flex', justifyContent: 'space-around',
         padding: '12px 0 20px', zIndex: 100,
-        boxShadow: 'var(--shadow-lg)'
+        borderTop: '1px solid var(--color-border)',
+        boxShadow: 'var(--shadow-lg)',
+        background: theme === 'dark' ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
       }}>
         {[
           { id: 'home', label: 'Home', icon: <Home size={18} /> },
-          { id: 'schools', label: 'Schools', icon: <GraduationCap size={18} /> },
+          { id: 'explore', label: 'Explore Hub', icon: <Compass size={18} /> },
           { id: 'aitutor', label: 'AI Tutor', icon: <Sparkles size={18} /> },
           { id: 'resources', label: 'Library', icon: <FileText size={18} /> },
           ...(profile.isAdmin ? [{ id: 'admin', label: 'Admin', icon: <Shield size={18} /> }] : []),

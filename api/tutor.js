@@ -45,24 +45,39 @@ Keep responses concise (under 200 words), encouraging, and practical. Use simple
 
     const contents = [];
 
-    // Add conversation history if provided
+    // Filter and map history to alternate roles starting with 'user'
     if (history && Array.isArray(history)) {
-      for (const msg of history.slice(-6)) { // Keep last 6 messages for context
-        contents.push({
-          role: msg.role === 'user' ? 'user' : 'model',
-          parts: [{ text: msg.text }]
-        });
+      // Find the first message with role === 'user' to ensure history starts with user
+      const startIndex = history.findIndex(msg => msg.role === 'user');
+      if (startIndex !== -1) {
+        const slicedHistory = history.slice(startIndex);
+        for (const msg of slicedHistory) {
+          const role = msg.role === 'user' ? 'user' : 'model';
+          // Ensure we don't push consecutive identical roles
+          if (contents.length === 0 || contents[contents.length - 1].role !== role) {
+            contents.push({
+              role,
+              parts: [{ text: msg.text }]
+            });
+          }
+        }
       }
     }
 
-    // Add current user message
-    contents.push({
-      role: 'user',
-      parts: [{ text: message }]
-    });
+    // Add current user message. Ensure we don't push consecutive 'user' roles.
+    const finalRole = 'user';
+    if (contents.length === 0 || contents[contents.length - 1].role !== finalRole) {
+      contents.push({
+        role: finalRole,
+        parts: [{ text: message }]
+      });
+    } else {
+      // If the last message in history was already a user message, overwrite its text
+      contents[contents.length - 1].parts = [{ text: message }];
+    }
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
