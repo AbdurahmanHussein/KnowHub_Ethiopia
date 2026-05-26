@@ -1,44 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Home, BookOpen, GraduationCap, Compass, Lightbulb, 
   FileText, MessageSquare, BarChart2, Settings, Heart, 
   Search, Moon, Sun, ChevronRight, MapPin, Calendar, 
   Phone, Mail, X, Check, ArrowRight, Play, RefreshCw, 
-  Send, Award, Award as Trophy, BookMarked, User, Globe
+  Send, Award, Award as Trophy, BookMarked, User, Globe,
+  Shield, Plus, Trash2, Edit3, ThumbsUp, MessageCircle,
+  LogIn, LogOut, UserPlus, Eye, EyeOff, Loader, Sparkles,
+  AlertCircle
 } from 'lucide-react';
 import { api } from '../services/api';
-
-const standardColors = {
-  primary: '#D4672E',
-  secondary: '#1B3A42',
-  accent: '#F7A940',
-  success: '#2B7A68',
-  light: '#F8F6F1',
-  dark: '#1A1A1A',
-  border: '#E8DCC8',
-  muted: '#7A7A7A',
-  card: '#FFFFFF',
-  surface: '#FDF9F3'
-};
+import { auth } from '../supabase';
 
 const quizQuestions = {
   ielts: [
     {
       q: "In IELTS Listening, how many sections are there in total?",
       options: ["2 Sections", "3 Sections", "4 Sections", "5 Sections"],
-      answer: 2, // "4 Sections"
+      answer: 2,
       explanation: "The IELTS Listening test has 4 sections with 10 questions each, making a total of 40 questions."
     },
     {
       q: "What is the recommended minimum word count for IELTS Writing Task 2?",
       options: ["150 words", "200 words", "250 words", "300 words"],
-      answer: 2, // "250 words"
+      answer: 2,
       explanation: "Writing Task 2 requires a minimum of 250 words and counts for two-thirds of your overall writing score."
     },
     {
       q: "Which skill is NOT tested directly in the IELTS Speaking exam?",
       options: ["Pronunciation", "Spelling", "Lexical Resource", "Grammatical Accuracy"],
-      answer: 1, // "Spelling"
+      answer: 1,
       explanation: "Speaking evaluates fluency, pronunciation, grammar, and vocabulary. Spelling is evaluated in Listening and Writing."
     }
   ],
@@ -46,13 +37,13 @@ const quizQuestions = {
     {
       q: "What is the maximum possible score on the TOEFL iBT exam?",
       options: ["9.0 points", "100 points", "120 points", "160 points"],
-      answer: 2, // "120 points"
+      answer: 2,
       explanation: "Each of the four sections (Reading, Listening, Speaking, Writing) is scored from 0-30, totaling 120 points."
     },
     {
       q: "How are the speaking responses recorded in the TOEFL iBT?",
       options: ["Interview with live examiner", "Speaking into a microphone/computer", "Written transcript of spoken audio", "None of the above"],
-      answer: 1, // "Speaking into a microphone/computer"
+      answer: 1,
       explanation: "TOEFL Speaking is fully automated/computer-delivered; you speak into a microphone, and your answers are evaluated by AI and human markers."
     }
   ],
@@ -60,13 +51,13 @@ const quizQuestions = {
     {
       q: "What is the general registration cost of the Duolingo English Test (DET)?",
       options: ["$49 USD", "$100 USD", "$150 USD", "$220 USD"],
-      answer: 0, // "$49 USD"
+      answer: 0,
       explanation: "The DET is exceptionally affordable at only $49 USD, compared to other exams costing over $200 USD."
     },
     {
       q: "Where do students take the Duolingo English Test?",
       options: ["At a certified testing center", "At any quiet room with a computer and camera", "Through a Telegram bot script", "At local embassies"],
-      answer: 1, // "At any quiet room with a computer and camera"
+      answer: 1,
       explanation: "The DET is taken online, at home, requiring only a stable computer, internet, front camera, and microphone."
     }
   ]
@@ -75,7 +66,28 @@ const quizQuestions = {
 export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding }) {
   const [activeTab, setActiveTab] = useState('home');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+
+  // Handle bot deep-linking / tab query parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    const validTabs = ['home', 'schools', 'scholarships', 'opportunities', 'skills', 'testprep', 'resources', 'aitutor', 'progress', 'settings', 'admin'];
+    if (tabParam && validTabs.includes(tabParam.toLowerCase())) {
+      setActiveTab(tabParam.toLowerCase());
+    }
+  }, []);
   
+  // Auth State
+  const [authUser, setAuthUser] = useState(null); // Supabase auth user (browser)
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'signup'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
   // Data States
   const [schools, setSchools] = useState([]);
   const [scholarships, setScholarships] = useState([]);
@@ -100,7 +112,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
   const [profile, setProfile] = useState({
     gradeLevel: 'all',
     preferredSubjects: [],
-    language: 'en'
+    language: 'en',
+    isAdmin: false
   });
   const [userId, setUserId] = useState(() => tgUser?.id || 'guest-user');
   const [isSeeding, setIsSeeding] = useState(false);
@@ -116,15 +129,50 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
   // AI Chat States
   const [aiMessage, setAiMessage] = useState('');
   const [aiChat, setAiChat] = useState([
-    { role: 'bot', text: "Hello! I am your KnowHub Study Assistant. Ask me anything about Ethiopian universities, international scholarship deadlines, study habits, or standardized exam tests!" }
+    { role: 'bot', text: "Hello! I'm your KnowHub AI Study Assistant, powered by Google Gemini. Ask me anything about Ethiopian universities, scholarships, study habits, or standardized exam preparation! 🎓" }
   ]);
+  const [aiTyping, setAiTyping] = useState(false);
+  const chatEndRef = useRef(null);
+
+  // Likes & Comments State
+  const [modalLikes, setModalLikes] = useState({ count: 0, liked: false });
+  const [modalComments, setModalComments] = useState([]);
+  const [newComment, setNewComment] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
+
+  // Admin State
+  const [adminItemType, setAdminItemType] = useState('schools');
+  const [showAdminForm, setShowAdminForm] = useState(false);
+  const [adminForm, setAdminForm] = useState({});
+  const [adminSaving, setAdminSaving] = useState(false);
+
+  // --- Auth: Check existing session on mount ---
+  useEffect(() => {
+    if (!isTelegram) {
+      auth.getSession().then(({ session }) => {
+        if (session?.user) {
+          setAuthUser(session.user);
+          setUserId(session.user.id);
+        }
+      });
+      const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+          setAuthUser(session.user);
+          setUserId(session.user.id);
+        } else {
+          setAuthUser(null);
+        }
+      });
+      return () => subscription?.unsubscribe();
+    }
+  }, [isTelegram]);
 
   // Load Initial Data
   useEffect(() => {
     async function loadData() {
       setLoading(true);
       try {
-        const uId = tgUser?.id || 'guest-user';
+        const uId = tgUser?.id || authUser?.id || 'guest-user';
         setUserId(uId);
         
         const [schs, schols, opps, sks, res, bms, prof] = await Promise.all([
@@ -135,11 +183,12 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           api.getResources(),
           api.getBookmarks(uId),
           api.getProfile(uId, {
-            username: tgUser?.username || 'Guest',
-            firstName: tgUser?.first_name || 'Guest Student',
+            username: tgUser?.username || authUser?.email || 'Guest',
+            firstName: tgUser?.first_name || authUser?.user_metadata?.name || 'Guest Student',
             gradeLevel: 'all',
             preferredSubjects: [],
-            language: 'en'
+            language: 'en',
+            isAdmin: false
           })
         ]);
 
@@ -157,7 +206,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
       }
     }
     loadData();
-  }, [tgUser]);
+  }, [tgUser, authUser]);
 
   // Handle Theme Application
   useEffect(() => {
@@ -178,8 +227,80 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     }
   }, [theme]);
 
+  // Scroll chat to bottom
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [aiChat, aiTyping]);
+
+  // Load likes/comments when a modal opens
+  useEffect(() => {
+    if (selectedSchool) {
+      loadModalSocial(selectedSchool.id, 'school');
+    } else if (selectedScholarship) {
+      loadModalSocial(selectedScholarship.id, 'scholarship');
+    }
+  }, [selectedSchool, selectedScholarship]);
+
+  const loadModalSocial = async (itemId, itemType) => {
+    setLoadingComments(true);
+    const [count, liked, comments] = await Promise.all([
+      api.getLikesCount(itemId, itemType),
+      api.checkUserLiked(userId, itemId, itemType),
+      api.getComments(itemId, itemType)
+    ]);
+    setModalLikes({ count, liked });
+    setModalComments(comments);
+    setLoadingComments(false);
+  };
+
   // Theme Toggler
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
+
+  // --- Auth Handlers ---
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+    try {
+      if (authMode === 'signup') {
+        const { data, error } = await auth.signUp(authEmail, authPassword, { name: authName });
+        if (error) throw error;
+        if (data?.user) {
+          setAuthUser(data.user);
+          setUserId(data.user.id);
+          // Create profile
+          await api.saveProfile(data.user.id, {
+            username: authEmail,
+            firstName: authName || 'Student',
+            gradeLevel: 'all',
+            preferredSubjects: [],
+            language: 'en',
+            isAdmin: false
+          });
+          setShowAuthModal(false);
+        }
+      } else {
+        const { data, error } = await auth.signIn(authEmail, authPassword);
+        if (error) throw error;
+        if (data?.user) {
+          setAuthUser(data.user);
+          setUserId(data.user.id);
+          setShowAuthModal(false);
+        }
+      }
+    } catch (err) {
+      setAuthError(err.message || 'Authentication failed');
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await auth.signOut();
+    setAuthUser(null);
+    setUserId('guest-user');
+    setProfile(prev => ({ ...prev, isAdmin: false }));
+  };
 
   // Bookmarks Toggle Helper
   const isBookmarked = (itemId, itemType) => {
@@ -202,6 +323,27 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     }
   };
 
+  // Like Toggle
+  const handleToggleLike = async (itemId, itemType) => {
+    const result = await api.toggleLike(userId, itemId, itemType);
+    setModalLikes({ count: result.count, liked: result.liked });
+  };
+
+  // Add Comment
+  const handleAddComment = async (itemId, itemType) => {
+    if (!newComment.trim()) return;
+    const comment = await api.addComment(
+      userId, itemId, itemType,
+      profile.username || 'Anonymous',
+      profile.firstName || 'Student',
+      newComment
+    );
+    if (comment) {
+      setModalComments(prev => [...prev, comment]);
+      setNewComment('');
+    }
+  };
+
   // Profile Save
   const handleSaveProfile = async (updates) => {
     const newProfile = { ...profile, ...updates };
@@ -216,7 +358,6 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     try {
       const res = await api.seedDatabase();
       setSeederStatus(res);
-      // Reload lists
       const [schs, schols, opps, sks, resourcesData] = await Promise.all([
         api.getSchools(),
         api.getScholarships(),
@@ -251,7 +392,6 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     if (quizIndex + 1 < quizQuestions[quizTest].length) {
       setQuizIndex(prev => prev + 1);
     } else {
-      // Calculate score
       let correct = 0;
       quizQuestions[quizTest].forEach((q, idx) => {
         if (updated[idx] === q.answer) correct++;
@@ -264,32 +404,155 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     }
   };
 
-  // AI Chat Bot Helpers
-  const triggerAiResponse = (userText) => {
-    const chat = [...aiChat, { role: 'user', text: userText }];
-    setAiChat(chat);
+  // AI Chat — now connected to Gemini via /api/tutor
+  const triggerAiResponse = async (userText) => {
+    const updatedChat = [...aiChat, { role: 'user', text: userText }];
+    setAiChat(updatedChat);
     setAiMessage('');
+    setAiTyping(true);
 
-    // Custom Mock Answers based on keywords
-    setTimeout(() => {
-      let botResponse = "That is an interesting topic! While I fetch that specific guidance, you can check our dedicated 'Schools' tab for institution data or 'Tests' tab for practice materials.";
-      
-      const txt = userText.toLowerCase();
-      if (txt.includes('hello') || txt.includes('hi ')) {
-        botResponse = "Hello! Hope your studies are going wonderfully today. How can I assist your educational journey in Ethiopia?";
-      } else if (txt.includes('ielts') || txt.includes('toefl') || txt.includes('english')) {
-        botResponse = "Preparing for English assessments? We offer comprehensive study guides for IELTS, TOEFL, and Duolingo English Tests (DET) under the 'Tests' tab. Make sure to try our interactive quiz engine!";
-      } else if (txt.includes('scholarship') || txt.includes('funding') || txt.includes('mastercard')) {
-        botResponse = "The Mastercard Foundation Scholars Program at AAU is highly recommended. It offers full tuition, stipends, and housing. Deadlines are usually in late August. Check our 'Scholarships' tab for more details!";
-      } else if (txt.includes('school') || txt.includes('university') || txt.includes('academy')) {
-        botResponse = "We have detailed listings for 20+ top institutions like Sandford Academy, Ethio-Japan School, and AAU. Go to the 'Schools' tab and filter by region or curriculum (IB, National, Cambridge).";
-      } else if (txt.includes('physics') || txt.includes('math') || txt.includes('biology')) {
-        botResponse = "Need study materials? Head over to our 'Resources' library to instantly preview or download Calculus slides, Cell Mitosis presentations, and Physics equation sheets!";
-      }
-
-      setAiChat([...chat, { role: 'bot', text: botResponse }]);
-    }, 800);
+    try {
+      const reply = await api.askTutor(userText, updatedChat.slice(-8));
+      setAiChat([...updatedChat, { role: 'bot', text: reply }]);
+    } catch {
+      setAiChat([...updatedChat, { role: 'bot', text: "Sorry, I couldn't process that. Please try again!" }]);
+    } finally {
+      setAiTyping(false);
+    }
   };
+
+  // Admin CRUD Handlers
+  const handleAdminCreate = async () => {
+    setAdminSaving(true);
+    let success = false;
+    if (adminItemType === 'schools') success = await api.createSchool(adminForm);
+    else if (adminItemType === 'scholarships') success = await api.createScholarship(adminForm);
+    else if (adminItemType === 'opportunities') success = await api.createOpportunity(adminForm);
+    else if (adminItemType === 'skills') success = await api.createSkill(adminForm);
+    else if (adminItemType === 'resources') success = await api.createResource(adminForm);
+
+    if (success) {
+      // Reload data
+      const fresh = adminItemType === 'schools' ? await api.getSchools()
+        : adminItemType === 'scholarships' ? await api.getScholarships()
+        : adminItemType === 'opportunities' ? await api.getOpportunities()
+        : adminItemType === 'skills' ? await api.getSkills()
+        : await api.getResources();
+      
+      if (adminItemType === 'schools') setSchools(fresh);
+      else if (adminItemType === 'scholarships') setScholarships(fresh);
+      else if (adminItemType === 'opportunities') setOpportunities(fresh);
+      else if (adminItemType === 'skills') setSkills(fresh);
+      else setResources(fresh);
+
+      setShowAdminForm(false);
+      setAdminForm({});
+    }
+    setAdminSaving(false);
+  };
+
+  const handleAdminDelete = async (table, id) => {
+    if (!confirm('Are you sure you want to delete this item?')) return;
+    const ok = await api.deleteItem(table, id);
+    if (ok) {
+      if (table === 'schools') setSchools(prev => prev.filter(s => s.id !== id));
+      else if (table === 'scholarships') setScholarships(prev => prev.filter(s => s.id !== id));
+      else if (table === 'opportunities') setOpportunities(prev => prev.filter(s => s.id !== id));
+      else if (table === 'skills') setSkills(prev => prev.filter(s => s.id !== id));
+      else if (table === 'resources') setResources(prev => prev.filter(s => s.id !== id));
+    }
+  };
+
+  // --- Social Panel Component (Likes & Comments) ---
+  const renderSocialPanel = (itemId, itemType) => (
+    <div style={{ borderTop: '1px solid var(--color-border)', marginTop: 24, paddingTop: 20 }}>
+      {/* Like Button */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <button 
+          onClick={() => handleToggleLike(itemId, itemType)}
+          className={modalLikes.liked ? 'like-btn-active' : ''}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            background: modalLikes.liked ? 'rgba(212,103,46,0.1)' : 'var(--color-light)',
+            border: `1.5px solid ${modalLikes.liked ? 'var(--color-primary)' : 'var(--color-border)'}`,
+            borderRadius: 'var(--radius-full)',
+            padding: '10px 20px',
+            color: modalLikes.liked ? 'var(--color-primary)' : 'var(--color-muted)',
+            fontWeight: 700, fontSize: 13,
+            transition: 'all 0.3s'
+          }}
+        >
+          <ThumbsUp size={16} fill={modalLikes.liked ? 'var(--color-primary)' : 'none'} />
+          {modalLikes.count} {modalLikes.count === 1 ? 'Like' : 'Likes'}
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--color-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <MessageCircle size={14} /> {modalComments.length} Comments
+        </span>
+      </div>
+
+      {/* Comments List */}
+      <div style={{ marginBottom: 16 }}>
+        <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+          Discussion
+        </h4>
+        {loadingComments ? (
+          <div style={{ textAlign: 'center', padding: 20 }}>
+            <Loader size={20} className="animate-rotate" color="var(--color-primary)" />
+          </div>
+        ) : modalComments.length === 0 ? (
+          <p style={{ fontSize: 13, color: 'var(--color-muted)', fontStyle: 'italic' }}>No comments yet. Be the first to share your thoughts!</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 240, overflowY: 'auto' }}>
+            {modalComments.map((c, idx) => (
+              <div key={c.id || idx} className="comment-bubble" style={{
+                background: 'var(--color-light)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 16px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontWeight: 700, fontSize: 12, color: 'var(--color-primary)' }}>
+                    {c.first_name || 'Student'}
+                  </span>
+                  <span style={{ fontSize: 10, color: 'var(--color-muted)' }}>
+                    {new Date(c.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <p style={{ fontSize: 13, color: 'var(--color-dark)', margin: 0, lineHeight: 1.5 }}>{c.content}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Add Comment Form */}
+      <form onSubmit={(e) => { e.preventDefault(); handleAddComment(itemId, itemType); }} style={{
+        display: 'flex', gap: 10,
+        background: 'var(--color-light)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-md)',
+        padding: 8
+      }}>
+        <input
+          placeholder="Share your thoughts or ask a question..."
+          value={newComment}
+          onChange={(e) => setNewComment(e.target.value)}
+          style={{
+            flex: 1, border: 'none', background: 'transparent',
+            color: 'var(--color-dark)', fontSize: 13,
+            paddingLeft: 10, fontFamily: 'var(--font-body)', outline: 'none'
+          }}
+        />
+        <button type="submit" style={{
+          background: 'var(--color-primary)', color: '#fff',
+          borderRadius: 8, width: 36, height: 36,
+          display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <Send size={14} />
+        </button>
+      </form>
+    </div>
+  );
 
   // --- RENDERING TABS ---
 
@@ -312,17 +575,13 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           overflow: 'hidden',
           marginBottom: 32
         }}>
-          {/* Background overlay details */}
           <div style={{
             position: 'absolute',
-            width: 250,
-            height: 250,
+            width: 250, height: 250,
             borderRadius: '50%',
             background: 'radial-gradient(circle, rgba(214, 103, 46, 0.25) 0%, transparent 70%)',
-            top: '-20%',
-            right: '-10%'
+            top: '-20%', right: '-10%'
           }} />
-
           <div style={{ position: 'relative', zIndex: 2 }}>
             <span style={{
               display: 'inline-block',
@@ -330,27 +589,24 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               backdropFilter: 'blur(8px)',
               padding: '6px 14px',
               borderRadius: 'var(--radius-full)',
-              fontSize: 12,
-              fontWeight: 600,
+              fontSize: 12, fontWeight: 600,
               color: 'var(--color-accent-light)',
               marginBottom: 16
             }}>
-              💡 Student Hub Dashboard
+              {authUser ? '🔑 Authenticated' : isTelegram ? '📱 Telegram Mini App' : '💡 Student Hub Dashboard'}
             </span>
             <h1 style={{
               fontSize: 'clamp(24px, 4vw, 36px)',
               fontWeight: 800,
               fontFamily: 'var(--font-display)',
-              marginBottom: 8,
-              lineHeight: 1.2
+              marginBottom: 8, lineHeight: 1.2
             }}>
               Welcome Back, {profile.firstName || 'Student'}!
             </h1>
             <p style={{
               fontSize: 14,
               color: 'rgba(255, 255, 255, 0.75)',
-              maxWidth: 480,
-              lineHeight: 1.5
+              maxWidth: 480, lineHeight: 1.5
             }}>
               Explore real-time resources, review your standardized test goals, and continue your journey toward excellence.
             </p>
@@ -359,15 +615,10 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
 
         {/* Global Search Bar */}
         <div style={{ padding: '0 24px', marginBottom: 32 }}>
-          <div style={{
-            background: 'var(--color-card)',
-            border: '1px solid var(--color-border)',
+          <div className="glass-card" style={{
             borderRadius: 'var(--radius-md)',
             padding: '14px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            boxShadow: 'var(--shadow-sm)'
+            display: 'flex', alignItems: 'center', gap: 12,
           }}>
             <Search size={20} color="var(--color-primary)" />
             <input 
@@ -375,20 +626,13 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--color-dark)',
-                fontSize: 15,
-                width: '100%',
-                fontFamily: 'var(--font-body)',
-                outline: 'none'
+                border: 'none', background: 'transparent',
+                color: 'var(--color-dark)', fontSize: 15,
+                width: '100%', fontFamily: 'var(--font-body)', outline: 'none'
               }}
             />
             {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                style={{ background: 'none', color: 'var(--color-muted)' }}
-              >
+              <button onClick={() => setSearchQuery('')} style={{ background: 'none', color: 'var(--color-muted)' }}>
                 <X size={18} />
               </button>
             )}
@@ -398,8 +642,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               background: 'var(--color-card)',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)',
-              marginTop: 8,
-              padding: 16,
+              marginTop: 8, padding: 16,
               boxShadow: 'var(--shadow-lg)'
             }}>
               <h4 style={{ fontSize: 13, color: 'var(--color-primary)', marginBottom: 8, fontWeight: 700 }}>
@@ -431,47 +674,24 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
 
         {/* Highlighted Stats Grid */}
         <div style={{ padding: '0 24px', marginBottom: 40 }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-            gap: 16
-          }}>
-            <div style={{
-              background: 'var(--color-card)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              padding: 20,
-              textAlign: 'center',
-              boxShadow: 'var(--shadow-sm)'
-            }}>
-              <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}>🔥</span>
-              <span style={{ fontSize: 12, color: 'var(--color-muted)', display: 'block' }}>Daily Streak</span>
-              <strong style={{ fontSize: 20, color: 'var(--color-primary)' }}>{activeStreak} Days</strong>
-            </div>
-            <div style={{
-              background: 'var(--color-card)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              padding: 20,
-              textAlign: 'center',
-              boxShadow: 'var(--shadow-sm)'
-            }}>
-              <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}>⏱️</span>
-              <span style={{ fontSize: 12, color: 'var(--color-muted)', display: 'block' }}>Hours Studied</span>
-              <strong style={{ fontSize: 20, color: 'var(--color-secondary)' }}>{hoursStudied}h</strong>
-            </div>
-            <div style={{
-              background: 'var(--color-card)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-md)',
-              padding: 20,
-              textAlign: 'center',
-              boxShadow: 'var(--shadow-sm)'
-            }}>
-              <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}>💖</span>
-              <span style={{ fontSize: 12, color: 'var(--color-muted)', display: 'block' }}>Bookmarks</span>
-              <strong style={{ fontSize: 20, color: 'var(--color-accent)' }}>{bookmarks.length} Items</strong>
-            </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 16 }}>
+            {[
+              { emoji: '🔥', label: 'Daily Streak', value: `${activeStreak} Days`, color: 'var(--color-primary)' },
+              { emoji: '⏱️', label: 'Hours Studied', value: `${hoursStudied}h`, color: 'var(--color-secondary)' },
+              { emoji: '💖', label: 'Bookmarks', value: `${bookmarks.length} Items`, color: 'var(--color-accent)' }
+            ].map(stat => (
+              <div key={stat.label} className="hover-lift" style={{
+                background: 'var(--color-card)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: 20, textAlign: 'center',
+                boxShadow: 'var(--shadow-sm)'
+              }}>
+                <span style={{ fontSize: 28, display: 'block', marginBottom: 8 }}>{stat.emoji}</span>
+                <span style={{ fontSize: 12, color: 'var(--color-muted)', display: 'block' }}>{stat.label}</span>
+                <strong style={{ fontSize: 20, color: stat.color }}>{stat.value}</strong>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -480,16 +700,12 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <h2 style={{ fontSize: 20, fontWeight: 800 }}>Explore Programs</h2>
           </div>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-            gap: 16
-          }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
             {[
               { id: 'schools', title: 'Discover Schools', desc: 'Browse 20+ top high schools and public universities inside Ethiopia.', icon: <GraduationCap size={24} color="#fff" />, color: 'var(--color-primary)' },
               { id: 'scholarships', title: 'Scholarships', desc: 'Unlock active funding programs tailored for East African students.', icon: <Compass size={24} color="#fff" />, color: 'var(--color-secondary)' },
               { id: 'testprep', title: 'Language Tests', desc: 'Full instructions and practice quizzes for IELTS, TOEFL, and DET.', icon: <Award size={24} color="#fff" />, color: 'var(--color-success)' },
-              { id: 'aitutor', title: 'AI Study Assistant', desc: 'Communicate with a friendly virtual helper for educational answers.', icon: <MessageSquare size={24} color="#fff" />, color: 'var(--color-accent)' },
+              { id: 'aitutor', title: 'AI Study Assistant', desc: 'Chat with Gemini-powered virtual tutor for educational answers.', icon: <Sparkles size={24} color="#fff" />, color: 'var(--color-accent)' },
             ].map(f => (
               <div 
                 key={f.id} 
@@ -498,21 +714,16 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                   background: 'var(--color-card)',
                   border: '1px solid var(--color-border)',
                   borderRadius: 'var(--radius-md)',
-                  padding: 24,
-                  cursor: 'pointer',
+                  padding: 24, cursor: 'pointer',
                   transition: 'all 0.3s ease',
                   position: 'relative'
                 }}
                 className="hover-lift"
               >
                 <div style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 10,
+                  width: 44, height: 44, borderRadius: 10,
                   background: f.color,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   marginBottom: 16
                 }}>
                   {f.icon}
@@ -533,9 +744,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             borderRadius: 'var(--radius-lg)',
             padding: '28px 24px',
             boxShadow: 'var(--shadow-md)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 16
+            display: 'flex', flexDirection: 'column', gap: 16
           }}>
             <div>
               <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--color-secondary)' }}>
@@ -554,11 +763,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 color: '#fff',
                 padding: '12px 24px',
                 borderRadius: 'var(--radius-full)',
-                fontWeight: 600,
-                fontSize: 13,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
+                fontWeight: 600, fontSize: 13,
+                display: 'flex', alignItems: 'center', gap: 8,
                 transition: 'all 0.3s'
               }}
             >
@@ -586,7 +792,6 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Browse 20+ verified primary, secondary, and higher institutions in Ethiopia.</p>
         </div>
 
-        {/* Filter Toolbar */}
         <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 16, marginBottom: 24 }}>
           {['all', 'Ethiopian National', 'IB', 'IB / Cambridge', 'French Baccalaureate'].map(cur => (
             <button
@@ -598,10 +803,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 background: schoolFilter === cur ? 'var(--color-primary)' : 'var(--color-card)',
                 color: schoolFilter === cur ? '#fff' : 'var(--color-dark)',
                 border: '1px solid var(--color-border)',
-                fontWeight: 600,
-                fontSize: 12,
-                whiteSpace: 'nowrap',
-                transition: 'all 0.3s'
+                fontWeight: 600, fontSize: 12,
+                whiteSpace: 'nowrap', transition: 'all 0.3s'
               }}
             >
               {cur === 'all' ? '🏫 All Curriculums' : cur}
@@ -609,26 +812,23 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           ))}
         </div>
 
-        {/* Grid List */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
           {filtered.map(s => (
             <div 
               key={s.id}
+              className="hover-lift"
               style={{
                 background: 'var(--color-card)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-md)',
-                padding: 24,
-                position: 'relative',
+                padding: 24, position: 'relative',
                 boxShadow: 'var(--shadow-sm)'
               }}
             >
               <button 
                 onClick={() => handleToggleBookmark(s, 'school')}
                 style={{
-                  position: 'absolute',
-                  top: 20,
-                  right: 20,
+                  position: 'absolute', top: 20, right: 20,
                   background: 'none',
                   color: isBookmarked(s.id, 'school') ? 'var(--color-primary)' : 'var(--color-muted)'
                 }}
@@ -638,12 +838,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               <span style={{
                 background: 'var(--color-primary-light)15',
                 color: 'var(--color-primary-dark)',
-                padding: '4px 8px',
-                borderRadius: 4,
-                fontSize: 10,
-                fontWeight: 700,
-                display: 'inline-block',
-                marginBottom: 12
+                padding: '4px 8px', borderRadius: 4,
+                fontSize: 10, fontWeight: 700,
+                display: 'inline-block', marginBottom: 12
               }}>
                 {s.curriculum}
               </span>
@@ -653,16 +850,13 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               </p>
               
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
-                <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Established: {s.established}</span>
+                <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Est. {s.established}</span>
                 <button 
                   onClick={() => setSelectedSchool(s)}
                   style={{
                     background: 'var(--color-secondary)',
-                    color: '#fff',
-                    borderRadius: 6,
-                    padding: '8px 16px',
-                    fontSize: 12,
-                    fontWeight: 600
+                    color: '#fff', borderRadius: 6,
+                    padding: '8px 16px', fontSize: 12, fontWeight: 600
                   }}
                 >
                   View Profile
@@ -690,7 +884,6 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Find fully-funded and partial scholarship grants open to Ethiopian high school and college students.</p>
         </div>
 
-        {/* Filter Toolbar */}
         <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 16, marginBottom: 24 }}>
           {['all', 'Ethiopia', 'East Africa', 'Pan-Africa', 'Global'].map(reg => (
             <button
@@ -702,10 +895,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 background: scholarshipFilter === reg ? 'var(--color-secondary)' : 'var(--color-card)',
                 color: scholarshipFilter === reg ? '#fff' : 'var(--color-dark)',
                 border: '1px solid var(--color-border)',
-                fontWeight: 600,
-                fontSize: 12,
-                whiteSpace: 'nowrap',
-                transition: 'all 0.3s'
+                fontWeight: 600, fontSize: 12,
+                whiteSpace: 'nowrap', transition: 'all 0.3s'
               }}
             >
               {reg === 'all' ? '🌍 All Regions' : reg}
@@ -713,30 +904,25 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           ))}
         </div>
 
-        {/* Grid List */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
           {filtered.map(s => (
             <div 
               key={s.id}
+              className="hover-lift"
               style={{
                 background: 'var(--color-card)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-md)',
-                padding: 24,
-                position: 'relative',
+                padding: 24, position: 'relative',
                 boxShadow: 'var(--shadow-sm)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between'
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
               }}
             >
               <div>
                 <button 
                   onClick={() => handleToggleBookmark(s, 'scholarship')}
                   style={{
-                    position: 'absolute',
-                    top: 20,
-                    right: 20,
+                    position: 'absolute', top: 20, right: 20,
                     background: 'none',
                     color: isBookmarked(s.id, 'scholarship') ? 'var(--color-primary)' : 'var(--color-muted)'
                   }}
@@ -746,12 +932,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 <span style={{
                   background: 'var(--color-success)15',
                   color: 'var(--color-success)',
-                  padding: '4px 8px',
-                  borderRadius: 4,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  display: 'inline-block',
-                  marginBottom: 12
+                  padding: '4px 8px', borderRadius: 4,
+                  fontSize: 10, fontWeight: 700,
+                  display: 'inline-block', marginBottom: 12
                 }}>
                   {s.amount}
                 </span>
@@ -770,11 +953,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                   onClick={() => setSelectedScholarship(s)}
                   style={{
                     background: 'var(--color-primary)',
-                    color: '#fff',
-                    borderRadius: 6,
-                    padding: '8px 16px',
-                    fontSize: 12,
-                    fontWeight: 600
+                    color: '#fff', borderRadius: 6,
+                    padding: '8px 16px', fontSize: 12, fontWeight: 600
                   }}
                 >
                   Read More
@@ -800,22 +980,20 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           {opportunities.map(o => (
             <div 
               key={o.id}
+              className="hover-lift"
               style={{
                 background: 'var(--color-card)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-md)',
-                padding: 24,
-                boxShadow: 'var(--shadow-sm)'
+                padding: 24, boxShadow: 'var(--shadow-sm)'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <span style={{
                   background: 'var(--color-accent)15',
                   color: 'var(--color-primary-dark)',
-                  padding: '4px 8px',
-                  borderRadius: 4,
-                  fontSize: 10,
-                  fontWeight: 700
+                  padding: '4px 8px', borderRadius: 4,
+                  fontSize: 10, fontWeight: 700
                 }}>
                   {o.category}
                 </span>
@@ -836,11 +1014,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                   <span style={{ fontSize: 11, color: 'var(--color-muted)' }}>Deadline: {o.deadline}</span>
                   <a href={o.link} target="_blank" rel="noopener noreferrer" style={{
                     color: 'var(--color-primary)',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4
+                    fontSize: 12, fontWeight: 700,
+                    display: 'flex', alignItems: 'center', gap: 4
                   }}>
                     Apply Externally <ArrowRight size={14} />
                   </a>
@@ -867,7 +1042,6 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Access top-quality free courses that are accessible in Ethiopia without restrictions.</p>
         </div>
 
-        {/* Filter Toolbar */}
         <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 16, marginBottom: 24 }}>
           {['all', 'Tech', 'Design', 'Business', 'Language', 'Science', 'Writing'].map(cat => (
             <button
@@ -879,10 +1053,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 background: skillFilter === cat ? 'var(--color-primary)' : 'var(--color-card)',
                 color: skillFilter === cat ? '#fff' : 'var(--color-dark)',
                 border: '1px solid var(--color-border)',
-                fontWeight: 600,
-                fontSize: 12,
-                whiteSpace: 'nowrap',
-                transition: 'all 0.3s'
+                fontWeight: 600, fontSize: 12,
+                whiteSpace: 'nowrap', transition: 'all 0.3s'
               }}
             >
               {cat === 'all' ? '💡 All Categories' : cat}
@@ -894,15 +1066,13 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           {filtered.map(s => (
             <div 
               key={s.id}
+              className="hover-lift"
               style={{
                 background: 'var(--color-card)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-md)',
-                padding: 24,
-                boxShadow: 'var(--shadow-sm)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between'
+                padding: 24, boxShadow: 'var(--shadow-sm)',
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
               }}
             >
               <div>
@@ -923,13 +1093,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               </div>
               <a href={s.link} target="_blank" rel="noopener noreferrer" style={{
                 background: 'var(--color-primary)',
-                color: '#fff',
-                textAlign: 'center',
-                padding: '10px',
-                borderRadius: 6,
-                fontWeight: 600,
-                fontSize: 12,
-                display: 'block'
+                color: '#fff', textAlign: 'center',
+                padding: '10px', borderRadius: 6,
+                fontWeight: 600, fontSize: 12, display: 'block'
               }}>
                 Start Learning Now
               </a>
@@ -949,14 +1115,12 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>In-depth strategy guidelines for IELTS Academic, TOEFL iBT, and Duolingo English Tests (DET).</p>
         </div>
 
-        {/* Dynamic Interactive Quiz Module */}
         {quizActive ? (
           <div style={{
             background: 'var(--color-card)',
             border: '2px solid var(--color-primary)',
             borderRadius: 'var(--radius-lg)',
-            padding: 28,
-            marginBottom: 32,
+            padding: 28, marginBottom: 32,
             boxShadow: 'var(--shadow-lg)'
           }}>
             {quizScore === null ? (
@@ -981,10 +1145,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                         background: 'var(--color-light)',
                         border: '1px solid var(--color-border)',
                         borderRadius: 'var(--radius-md)',
-                        padding: 16,
-                        textAlign: 'left',
-                        fontSize: 14,
-                        fontWeight: 500,
+                        padding: 16, textAlign: 'left',
+                        fontSize: 14, fontWeight: 500,
                         transition: 'all 0.3s'
                       }}
                       className="hover-lift"
@@ -1019,11 +1181,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                   onClick={() => setQuizActive(false)}
                   style={{
                     background: 'var(--color-primary)',
-                    color: '#fff',
-                    padding: '12px 28px',
+                    color: '#fff', padding: '12px 28px',
                     borderRadius: 'var(--radius-full)',
-                    fontWeight: 600,
-                    fontSize: 13
+                    fontWeight: 600, fontSize: 13
                   }}
                 >
                   Close Quiz
@@ -1036,8 +1196,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             background: 'var(--color-card)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-lg)',
-            padding: 24,
-            marginBottom: 32,
+            padding: 24, marginBottom: 32,
             boxShadow: 'var(--shadow-sm)'
           }}>
             <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Test Your Knowledge</h3>
@@ -1056,7 +1215,6 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           </div>
         )}
 
-        {/* Static Strategy Outlines */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 20 }}>
           <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 24 }}>
             <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-primary)', marginBottom: 14 }}>🇬🇧 IELTS Academic</h3>
@@ -1105,7 +1263,6 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Instantly access physics equations, math slides, biology folders, and sample essays.</p>
         </div>
 
-        {/* Filter Toolbar */}
         <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 16, marginBottom: 24 }}>
           {['all', 'pdf', 'ppt', 'articles', 'magazines'].map(cat => (
             <button
@@ -1117,10 +1274,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 background: resourceFilter === cat ? 'var(--color-primary)' : 'var(--color-card)',
                 color: resourceFilter === cat ? '#fff' : 'var(--color-dark)',
                 border: '1px solid var(--color-border)',
-                fontWeight: 600,
-                fontSize: 12,
-                whiteSpace: 'nowrap',
-                transition: 'all 0.3s'
+                fontWeight: 600, fontSize: 12,
+                whiteSpace: 'nowrap', transition: 'all 0.3s'
               }}
             >
               {cat === 'all' ? '📚 All Materials' : cat.toUpperCase()}
@@ -1128,32 +1283,26 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           ))}
         </div>
 
-        {/* Grid List */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
           {filtered.map(r => (
             <div 
               key={r.id}
+              className="hover-lift"
               style={{
                 background: 'var(--color-card)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-md)',
-                padding: 24,
-                boxShadow: 'var(--shadow-sm)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between'
+                padding: 24, boxShadow: 'var(--shadow-sm)',
+                display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
               }}
             >
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12, alignItems: 'center' }}>
                   <span style={{
-                    fontSize: 10,
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
+                    fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
                     color: 'var(--color-primary)',
                     background: 'var(--color-primary-light)15',
-                    padding: '2px 6px',
-                    borderRadius: 4
+                    padding: '2px 6px', borderRadius: 4
                   }}>
                     {r.category.toUpperCase()}
                   </span>
@@ -1168,13 +1317,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 <button 
                   onClick={() => alert(`Simulated Download: ${r.title} will download shortly.`)}
                   style={{
-                    flex: 1,
-                    background: 'var(--color-primary)',
-                    color: '#fff',
-                    padding: '10px',
-                    borderRadius: 6,
-                    fontWeight: 600,
-                    fontSize: 12
+                    flex: 1, background: 'var(--color-primary)',
+                    color: '#fff', padding: '10px',
+                    borderRadius: 6, fontWeight: 600, fontSize: 12
                   }}
                 >
                   Download Asset
@@ -1185,10 +1330,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                     background: 'var(--color-light)',
                     border: '1px solid var(--color-border)',
                     color: 'var(--color-dark)',
-                    padding: '10px 14px',
-                    borderRadius: 6,
-                    fontWeight: 600,
-                    fontSize: 12
+                    padding: '10px 14px', borderRadius: 6,
+                    fontWeight: 600, fontSize: 12
                   }}
                 >
                   Preview
@@ -1201,13 +1344,23 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     );
   };
 
-  // 8. AI Tutor Tab
+  // 8. AI Tutor Tab (Now with Gemini Integration)
   const renderAiTutor = () => {
     return (
       <div className="animate-fade-in" style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', height: 'calc(100vh - 120px)' }}>
         <div style={{ marginBottom: 20 }}>
-          <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>AI Study Assistant</h2>
-          <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Get instantaneous answers regarding high schools, universities, or preparation guides.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <h2 style={{ fontSize: 24, fontWeight: 800 }}>AI Study Assistant</h2>
+            <span style={{
+              background: 'linear-gradient(135deg, #4285F4, #34A853)',
+              color: '#fff', fontSize: 9, fontWeight: 800,
+              padding: '3px 8px', borderRadius: 'var(--radius-full)',
+              textTransform: 'uppercase', letterSpacing: 0.5
+            }}>
+              Gemini Powered
+            </span>
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Get real-time, intelligent academic guidance from Google Gemini AI.</p>
         </div>
 
         {/* Suggestion Pills */}
@@ -1216,7 +1369,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             "How do I prepare for IELTS?",
             "What scholarships does AAU offer?",
             "Tell me about Sandford Academy",
-            "Are there free programming classes?"
+            "Best free programming courses?"
           ].map(p => (
             <button
               key={p}
@@ -1225,12 +1378,12 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 background: 'var(--color-card)',
                 border: '1px solid var(--color-border)',
                 borderRadius: 'var(--radius-full)',
-                padding: '8px 16px',
-                fontSize: 12,
-                fontWeight: 600,
-                whiteSpace: 'nowrap',
-                color: 'var(--color-dark)'
+                padding: '8px 16px', fontSize: 12,
+                fontWeight: 600, whiteSpace: 'nowrap',
+                color: 'var(--color-dark)',
+                transition: 'all 0.2s'
               }}
+              className="hover-lift"
             >
               {p}
             </button>
@@ -1243,73 +1396,87 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           background: 'var(--color-card)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
-          padding: 20,
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 16,
+          padding: 20, overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', gap: 16,
           marginBottom: 16
         }}>
           {aiChat.map((m, idx) => (
             <div key={idx} style={{
               display: 'flex',
               justifyContent: m.role === 'user' ? 'flex-end' : 'flex-start'
-            }}>
+            }} className="animate-slide-up">
               <div style={{
                 background: m.role === 'user' ? 'var(--color-primary)' : 'var(--color-light)',
                 color: m.role === 'user' ? '#fff' : 'var(--color-dark)',
                 border: m.role === 'user' ? 'none' : '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
+                borderRadius: m.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                 padding: '12px 16px',
-                maxWidth: '75%',
-                fontSize: 13.5,
-                lineHeight: 1.5,
-                boxShadow: 'var(--shadow-sm)'
+                maxWidth: '80%',
+                fontSize: 13.5, lineHeight: 1.6,
+                boxShadow: 'var(--shadow-sm)',
+                whiteSpace: 'pre-wrap'
               }}>
+                {m.role === 'bot' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <Sparkles size={12} color="var(--color-primary)" />
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--color-primary)', textTransform: 'uppercase' }}>KnowHub AI</span>
+                  </div>
+                )}
                 {m.text}
               </div>
             </div>
           ))}
+          {aiTyping && (
+            <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+              <div style={{
+                background: 'var(--color-light)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '16px 16px 16px 4px',
+                padding: '14px 20px',
+                display: 'flex', gap: 6, alignItems: 'center'
+              }}>
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+              </div>
+            </div>
+          )}
+          <div ref={chatEndRef} />
         </div>
 
         {/* Input Bar */}
         <form onSubmit={(e) => { e.preventDefault(); if (aiMessage.trim()) triggerAiResponse(aiMessage); }} style={{
-          display: 'flex',
-          gap: 12,
+          display: 'flex', gap: 12,
           background: 'var(--color-card)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
           padding: 8
         }}>
           <input
-            placeholder="Type your study question..."
+            placeholder="Ask anything about education, exams, or careers..."
             value={aiMessage}
             onChange={(e) => setAiMessage(e.target.value)}
+            disabled={aiTyping}
             style={{
-              flex: 1,
-              border: 'none',
+              flex: 1, border: 'none',
               background: 'transparent',
-              color: 'var(--color-dark)',
-              fontSize: 14,
-              paddingLeft: 12,
-              fontFamily: 'var(--font-body)',
-              outline: 'none'
+              color: 'var(--color-dark)', fontSize: 14,
+              paddingLeft: 12, fontFamily: 'var(--font-body)',
+              outline: 'none',
+              opacity: aiTyping ? 0.5 : 1
             }}
           />
           <button 
             type="submit"
+            disabled={aiTyping}
             style={{
-              background: 'var(--color-primary)',
-              color: '#fff',
-              borderRadius: 6,
-              width: 40,
-              height: 40,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
+              background: aiTyping ? 'var(--color-muted)' : 'var(--color-primary)',
+              color: '#fff', borderRadius: 8,
+              width: 40, height: 40,
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}
           >
-            <Send size={16} />
+            {aiTyping ? <Loader size={16} className="animate-rotate" /> : <Send size={16} />}
           </button>
         </form>
       </div>
@@ -1325,13 +1492,11 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Visualize studied courses, quiz performance, and strength assessment markers.</p>
         </div>
 
-        {/* Weekly Stats Summary Panel */}
         <div style={{
           background: 'linear-gradient(135deg, var(--color-secondary) 0%, var(--color-success) 100%)',
           color: '#fff',
           borderRadius: 'var(--radius-lg)',
-          padding: 28,
-          marginBottom: 32,
+          padding: 28, marginBottom: 32,
           boxShadow: 'var(--shadow-md)'
         }}>
           <h3 style={{ fontSize: 17, fontWeight: 700, marginBottom: 20 }}>📊 Current Performance Metrics</h3>
@@ -1347,7 +1512,6 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           </div>
         </div>
 
-        {/* Subject Area Strength Progress Bars */}
         <div style={{ background: 'var(--color-card)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: 24, boxShadow: 'var(--shadow-sm)' }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20 }}>Subject Area Proficiency</h3>
           
@@ -1363,7 +1527,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 <span>{p.score}%</span>
               </div>
               <div style={{ height: 10, background: 'var(--color-light)', borderRadius: 'var(--radius-full)', overflow: 'hidden', border: '1px solid var(--color-border)' }}>
-                <div style={{ height: '100%', background: p.color, width: `${p.score}%`, borderRadius: 'var(--radius-full)' }} />
+                <div style={{ height: '100%', background: p.color, width: `${p.score}%`, borderRadius: 'var(--radius-full)', transition: 'width 1s ease' }} />
               </div>
             </div>
           ))}
@@ -1381,13 +1545,68 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Configure grade level goals, subject focus filters, database seeding triggers, and visual theme settings.</p>
         </div>
 
+        {/* Account Section */}
+        {!isTelegram && (
+          <div style={{
+            background: 'var(--color-card)',
+            border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            padding: 24, boxShadow: 'var(--shadow-sm)',
+            marginBottom: 32
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <LogIn size={18} color="var(--color-info)" /> Account
+            </h3>
+            {authUser ? (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+                  <div style={{
+                    width: 42, height: 42, borderRadius: 'var(--radius-full)',
+                    background: 'var(--gradient-warm)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#fff', fontWeight: 800, fontSize: 16
+                  }}>
+                    {(profile.firstName || 'S')[0].toUpperCase()}
+                  </div>
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: 14, margin: 0 }}>{profile.firstName || 'Student'}</p>
+                    <p style={{ fontSize: 12, color: 'var(--color-muted)', margin: 0 }}>{authUser.email}</p>
+                  </div>
+                </div>
+                <button onClick={handleSignOut} style={{
+                  background: 'none', color: 'var(--color-danger)',
+                  border: '1px solid var(--color-danger)',
+                  borderRadius: 6, padding: '8px 16px',
+                  fontSize: 12, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 6
+                }}>
+                  <LogOut size={14} /> Sign Out
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 14 }}>
+                  Sign in to save your progress, bookmarks, and preferences across devices.
+                </p>
+                <button onClick={() => setShowAuthModal(true)} style={{
+                  background: 'var(--color-primary)', color: '#fff',
+                  borderRadius: 6, padding: '10px 20px',
+                  fontSize: 13, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 8
+                }}>
+                  <LogIn size={16} /> Sign In / Create Account
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Profile Settings section */}
         <div style={{
           background: 'var(--color-card)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
-          padding: 24,
-          boxShadow: 'var(--shadow-sm)',
+          padding: 24, boxShadow: 'var(--shadow-sm)',
           marginBottom: 32
         }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1401,16 +1620,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             <select
               value={profile.gradeLevel}
               onChange={(e) => handleSaveProfile({ gradeLevel: e.target.value })}
-              style={{
-                width: '100%',
-                padding: 12,
-                borderRadius: 8,
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-light)',
-                color: 'var(--color-dark)',
-                outline: 'none',
-                fontFamily: 'var(--font-body)'
-              }}
+              className="admin-input"
             >
               <option value="all">Select All Grades</option>
               <option value="middle">Middle School</option>
@@ -1454,14 +1664,11 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               <button 
                 onClick={() => handleSaveProfile({ language: 'en' })}
                 style={{
-                  flex: 1,
-                  padding: 10,
-                  borderRadius: 6,
+                  flex: 1, padding: 10, borderRadius: 6,
                   background: profile.language === 'en' ? 'var(--color-primary)' : 'var(--color-light)',
                   color: profile.language === 'en' ? '#fff' : 'var(--color-dark)',
                   border: '1px solid var(--color-border)',
-                  fontWeight: 600,
-                  fontSize: 12
+                  fontWeight: 600, fontSize: 12
                 }}
               >
                 English
@@ -1469,14 +1676,11 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               <button 
                 onClick={() => handleSaveProfile({ language: 'am' })}
                 style={{
-                  flex: 1,
-                  padding: 10,
-                  borderRadius: 6,
+                  flex: 1, padding: 10, borderRadius: 6,
                   background: profile.language === 'am' ? 'var(--color-primary)' : 'var(--color-light)',
                   color: profile.language === 'am' ? '#fff' : 'var(--color-dark)',
                   border: '1px solid var(--color-border)',
-                  fontWeight: 600,
-                  fontSize: 12
+                  fontWeight: 600, fontSize: 12
                 }}
               >
                 አማርኛ (Amharic)
@@ -1490,15 +1694,14 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           background: 'var(--color-card)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
-          padding: 24,
-          boxShadow: 'var(--shadow-sm)',
+          padding: 24, boxShadow: 'var(--shadow-sm)',
           marginBottom: 32
         }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Globe size={18} color="var(--color-secondary)" /> Database Control Center
           </h3>
           <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 20, lineHeight: 1.4 }}>
-            Since your Supabase tables are currently empty, you can populate all tables (schools, scholarships, opportunities, skills, resources) with our verified academic datasets in one click!
+            Populate all tables with verified academic datasets in one click.
           </p>
 
           <button
@@ -1506,23 +1709,14 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             disabled={isSeeding}
             style={{
               background: 'var(--gradient-warm)',
-              color: '#fff',
-              borderRadius: 6,
-              padding: '12px 24px',
-              fontSize: 13,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              opacity: isSeeding ? 0.7 : 1,
-              width: '100%'
+              color: '#fff', borderRadius: 6,
+              padding: '12px 24px', fontSize: 13, fontWeight: 700,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 8, opacity: isSeeding ? 0.7 : 1, width: '100%'
             }}
           >
             {isSeeding ? (
-              <>
-                <RefreshCw size={16} className="animate-rotate" /> Seeding Database...
-              </>
+              <><RefreshCw size={16} className="animate-rotate" /> Seeding Database...</>
             ) : (
               '⚡ One-Click Seeding Database'
             )}
@@ -1532,9 +1726,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             <div style={{
               background: 'var(--color-light)',
               border: '1px solid var(--color-border)',
-              borderRadius: 6,
-              padding: 16,
-              marginTop: 16
+              borderRadius: 6, padding: 16, marginTop: 16
             }}>
               <h4 style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', marginBottom: 8 }}>
                 Seeding Outcome Log:
@@ -1545,7 +1737,6 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                   <ul style={{ paddingLeft: 16 }}>
                     {seederStatus.errors.map((e, idx) => <li key={idx}>{e}</li>)}
                   </ul>
-                  <p style={{ marginTop: 8 }}><em>Note: Please confirm your Supabase project schema tables are fully created using the SQL script before executing the seeder. Fallback mock arrays are active.</em></p>
                 </div>
               ) : (
                 <div style={{ color: 'var(--color-success)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1561,13 +1752,12 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           )}
         </div>
 
-        {/* Profile Saved Bookmarks panel */}
+        {/* Saved Bookmarks panel */}
         <div style={{
           background: 'var(--color-card)',
           border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)',
-          padding: 24,
-          boxShadow: 'var(--shadow-sm)'
+          padding: 24, boxShadow: 'var(--shadow-sm)'
         }}>
           <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Heart size={18} color="red" fill="red" /> Saved Bookmark Lists ({bookmarks.length})
@@ -1578,14 +1768,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {bookmarks.map((bm, idx) => (
                 <div key={idx} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  background: 'var(--color-light)',
-                  padding: '12px 16px',
-                  borderRadius: 8,
-                  border: '1px solid var(--color-border)',
-                  fontSize: 13
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  background: 'var(--color-light)', padding: '12px 16px',
+                  borderRadius: 8, border: '1px solid var(--color-border)', fontSize: 13
                 }}>
                   <div>
                     <span style={{ fontWeight: 700, display: 'block' }}>{bm.item_title}</span>
@@ -1613,40 +1798,210 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     );
   };
 
+  // 11. Admin Tab (Phase 3)
+  const renderAdmin = () => {
+    const currentItems = adminItemType === 'schools' ? schools
+      : adminItemType === 'scholarships' ? scholarships
+      : adminItemType === 'opportunities' ? opportunities
+      : adminItemType === 'skills' ? skills
+      : resources;
+
+    return (
+      <div className="animate-fade-in" style={{ padding: '0 24px 40px' }}>
+        <div style={{ marginBottom: 28 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <h2 style={{ fontSize: 24, fontWeight: 800 }}>Admin Workspace</h2>
+            <span style={{
+              background: 'var(--color-danger)',
+              color: '#fff', fontSize: 9, fontWeight: 800,
+              padding: '3px 8px', borderRadius: 'var(--radius-full)',
+              textTransform: 'uppercase'
+            }}>
+              Admin Only
+            </span>
+          </div>
+          <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Create, edit, and manage educational content directly from this dashboard.</p>
+        </div>
+
+        {/* Item Type Selector */}
+        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 16, marginBottom: 24 }}>
+          {['schools', 'scholarships', 'opportunities', 'skills', 'resources'].map(type => (
+            <button key={type} onClick={() => { setAdminItemType(type); setShowAdminForm(false); }}
+              style={{
+                padding: '8px 16px', borderRadius: 'var(--radius-full)',
+                background: adminItemType === type ? 'var(--color-secondary)' : 'var(--color-card)',
+                color: adminItemType === type ? '#fff' : 'var(--color-dark)',
+                border: '1px solid var(--color-border)',
+                fontWeight: 600, fontSize: 12,
+                whiteSpace: 'nowrap', textTransform: 'capitalize'
+              }}
+            >
+              {type}
+            </button>
+          ))}
+        </div>
+
+        {/* Add New Button */}
+        <button onClick={() => { setShowAdminForm(!showAdminForm); setAdminForm({}); }}
+          style={{
+            background: 'var(--color-success)', color: '#fff',
+            borderRadius: 8, padding: '10px 20px',
+            fontSize: 13, fontWeight: 700,
+            display: 'flex', alignItems: 'center', gap: 8,
+            marginBottom: 24
+          }}
+        >
+          <Plus size={16} /> Add New {adminItemType.slice(0, -1)}
+        </button>
+
+        {/* Add Form */}
+        {showAdminForm && (
+          <div className="animate-scale-in" style={{
+            background: 'var(--color-card)',
+            border: '2px solid var(--color-success)',
+            borderRadius: 'var(--radius-md)',
+            padding: 24, marginBottom: 24
+          }}>
+            <h4 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>
+              Create New {adminItemType.slice(0, -1)}
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              {adminItemType === 'schools' && (
+                <>
+                  <input className="admin-input" placeholder="School Name *" value={adminForm.name || ''} onChange={e => setAdminForm({...adminForm, name: e.target.value})} />
+                  <input className="admin-input" placeholder="City *" value={adminForm.city || ''} onChange={e => setAdminForm({...adminForm, city: e.target.value})} />
+                  <input className="admin-input" placeholder="Region *" value={adminForm.region || ''} onChange={e => setAdminForm({...adminForm, region: e.target.value})} />
+                  <input className="admin-input" placeholder="Curriculum *" value={adminForm.curriculum || ''} onChange={e => setAdminForm({...adminForm, curriculum: e.target.value})} />
+                  <input className="admin-input" placeholder="Phone" value={adminForm.phone || ''} onChange={e => setAdminForm({...adminForm, phone: e.target.value})} />
+                  <input className="admin-input" placeholder="Email" value={adminForm.email || ''} onChange={e => setAdminForm({...adminForm, email: e.target.value})} />
+                  <textarea className="admin-input" placeholder="Description" style={{ gridColumn: '1/-1', minHeight: 80, resize: 'vertical' }} value={adminForm.description || ''} onChange={e => setAdminForm({...adminForm, description: e.target.value})} />
+                </>
+              )}
+              {adminItemType === 'scholarships' && (
+                <>
+                  <input className="admin-input" placeholder="Title *" value={adminForm.title || ''} onChange={e => setAdminForm({...adminForm, title: e.target.value})} />
+                  <input className="admin-input" placeholder="Organization *" value={adminForm.organization || ''} onChange={e => setAdminForm({...adminForm, organization: e.target.value})} />
+                  <input className="admin-input" placeholder="Region *" value={adminForm.region || ''} onChange={e => setAdminForm({...adminForm, region: e.target.value})} />
+                  <input className="admin-input" placeholder="Amount *" value={adminForm.amount || ''} onChange={e => setAdminForm({...adminForm, amount: e.target.value})} />
+                  <input className="admin-input" placeholder="Eligibility *" value={adminForm.eligibility || ''} onChange={e => setAdminForm({...adminForm, eligibility: e.target.value})} />
+                  <input className="admin-input" type="date" placeholder="Deadline *" value={adminForm.deadline || ''} onChange={e => setAdminForm({...adminForm, deadline: e.target.value})} />
+                  <input className="admin-input" placeholder="Link" style={{ gridColumn: '1/-1' }} value={adminForm.link || ''} onChange={e => setAdminForm({...adminForm, link: e.target.value})} />
+                  <textarea className="admin-input" placeholder="Description" style={{ gridColumn: '1/-1', minHeight: 80, resize: 'vertical' }} value={adminForm.description || ''} onChange={e => setAdminForm({...adminForm, description: e.target.value})} />
+                </>
+              )}
+              {adminItemType === 'opportunities' && (
+                <>
+                  <input className="admin-input" placeholder="Title *" value={adminForm.title || ''} onChange={e => setAdminForm({...adminForm, title: e.target.value})} />
+                  <input className="admin-input" placeholder="Category *" value={adminForm.category || ''} onChange={e => setAdminForm({...adminForm, category: e.target.value})} />
+                  <input className="admin-input" placeholder="Level *" value={adminForm.level || ''} onChange={e => setAdminForm({...adminForm, level: e.target.value})} />
+                  <input className="admin-input" placeholder="Duration *" value={adminForm.duration || ''} onChange={e => setAdminForm({...adminForm, duration: e.target.value})} />
+                  <input className="admin-input" type="date" placeholder="Deadline *" value={adminForm.deadline || ''} onChange={e => setAdminForm({...adminForm, deadline: e.target.value})} />
+                  <input className="admin-input" placeholder="Link" value={adminForm.link || ''} onChange={e => setAdminForm({...adminForm, link: e.target.value})} />
+                  <textarea className="admin-input" placeholder="Description *" style={{ gridColumn: '1/-1', minHeight: 80, resize: 'vertical' }} value={adminForm.description || ''} onChange={e => setAdminForm({...adminForm, description: e.target.value})} />
+                </>
+              )}
+              {adminItemType === 'skills' && (
+                <>
+                  <input className="admin-input" placeholder="Title *" value={adminForm.title || ''} onChange={e => setAdminForm({...adminForm, title: e.target.value})} />
+                  <input className="admin-input" placeholder="Category *" value={adminForm.category || ''} onChange={e => setAdminForm({...adminForm, category: e.target.value})} />
+                  <input className="admin-input" placeholder="Platform *" value={adminForm.platform || ''} onChange={e => setAdminForm({...adminForm, platform: e.target.value})} />
+                  <input className="admin-input" placeholder="Duration *" value={adminForm.duration || ''} onChange={e => setAdminForm({...adminForm, duration: e.target.value})} />
+                  <input className="admin-input" placeholder="Level *" value={adminForm.level || ''} onChange={e => setAdminForm({...adminForm, level: e.target.value})} />
+                  <input className="admin-input" placeholder="Link *" value={adminForm.link || ''} onChange={e => setAdminForm({...adminForm, link: e.target.value})} />
+                  <textarea className="admin-input" placeholder="Description *" style={{ gridColumn: '1/-1', minHeight: 80, resize: 'vertical' }} value={adminForm.description || ''} onChange={e => setAdminForm({...adminForm, description: e.target.value})} />
+                </>
+              )}
+              {adminItemType === 'resources' && (
+                <>
+                  <input className="admin-input" placeholder="Title *" value={adminForm.title || ''} onChange={e => setAdminForm({...adminForm, title: e.target.value})} />
+                  <input className="admin-input" placeholder="Category *" value={adminForm.category || ''} onChange={e => setAdminForm({...adminForm, category: e.target.value})} />
+                  <input className="admin-input" placeholder="Subject *" value={adminForm.subject || ''} onChange={e => setAdminForm({...adminForm, subject: e.target.value})} />
+                  <input className="admin-input" placeholder="Source" value={adminForm.source || ''} onChange={e => setAdminForm({...adminForm, source: e.target.value})} />
+                  <textarea className="admin-input" placeholder="Description" style={{ gridColumn: '1/-1', minHeight: 80, resize: 'vertical' }} value={adminForm.description || ''} onChange={e => setAdminForm({...adminForm, description: e.target.value})} />
+                </>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button onClick={handleAdminCreate} disabled={adminSaving}
+                style={{
+                  background: 'var(--color-primary)', color: '#fff',
+                  borderRadius: 6, padding: '10px 20px',
+                  fontSize: 13, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  opacity: adminSaving ? 0.7 : 1
+                }}
+              >
+                {adminSaving ? <><Loader size={14} className="animate-rotate" /> Saving...</> : <><Check size={14} /> Create Item</>}
+              </button>
+              <button onClick={() => setShowAdminForm(false)}
+                style={{
+                  background: 'var(--color-light)', color: 'var(--color-dark)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 6, padding: '10px 20px',
+                  fontSize: 13, fontWeight: 600
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Items List */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {currentItems.map(item => (
+            <div key={item.id} style={{
+              background: 'var(--color-card)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '16px 20px',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+            }}>
+              <div style={{ flex: 1 }}>
+                <span style={{ fontWeight: 700, fontSize: 14 }}>{item.name || item.title}</span>
+                <span style={{ fontSize: 11, color: 'var(--color-muted)', display: 'block', marginTop: 2 }}>
+                  ID: {item.id}
+                </span>
+              </div>
+              <button onClick={() => handleAdminDelete(adminItemType, item.id)}
+                style={{
+                  background: 'none', color: 'var(--color-danger)',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontSize: 12, fontWeight: 600
+                }}
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{
       background: 'var(--color-light)',
       minHeight: '100vh',
       fontFamily: 'var(--font-body)',
       color: 'var(--color-dark)',
-      display: 'flex',
-      flexDirection: 'column'
+      display: 'flex', flexDirection: 'column'
     }}>
       {/* Top Header Navigation Bar */}
       <header style={{
         background: 'var(--color-card)',
         borderBottom: '1px solid var(--color-border)',
         padding: '16px 24px',
-        position: 'sticky',
-        top: 0,
-        zIndex: 90,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        position: 'sticky', top: 0, zIndex: 90,
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         boxShadow: 'var(--shadow-sm)'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{
-            width: 32,
-            height: 32,
-            borderRadius: 8,
+            width: 32, height: 32, borderRadius: 8,
             background: 'var(--gradient-warm)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 800,
-            color: '#fff',
-            fontSize: 14
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontWeight: 800, color: '#fff', fontSize: 14
           }}>
             KH
           </span>
@@ -1659,18 +2014,14 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {/* Back button shown only in browser fallback context */}
           {!isTelegram && (
             <button 
               onClick={onBackToLanding}
               style={{
-                background: 'none',
-                color: 'var(--color-primary)',
-                fontSize: 12,
-                fontWeight: 700,
+                background: 'none', color: 'var(--color-primary)',
+                fontSize: 12, fontWeight: 700,
                 border: '1px solid var(--color-primary)',
-                padding: '6px 12px',
-                borderRadius: 6
+                padding: '6px 12px', borderRadius: 6
               }}
             >
               Landing Page
@@ -1682,12 +2033,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             style={{
               background: 'var(--color-light)',
               border: '1px solid var(--color-border)',
-              borderRadius: 8,
-              width: 36,
-              height: 36,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              borderRadius: 8, width: 36, height: 36,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
               color: 'var(--color-dark)'
             }}
           >
@@ -1717,29 +2064,26 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             {activeTab === 'aitutor' && renderAiTutor()}
             {activeTab === 'progress' && renderProgress()}
             {activeTab === 'settings' && renderSettings()}
+            {activeTab === 'admin' && profile.isAdmin && renderAdmin()}
           </>
         )}
       </main>
 
       {/* Fixed Bottom Mobile Navigation Bar */}
       <nav style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
+        position: 'fixed', bottom: 0, left: 0, right: 0,
         background: 'var(--color-card)',
         borderTop: '1px solid var(--color-border)',
-        display: 'flex',
-        justifyContent: 'space-around',
-        padding: '12px 0 20px',
-        zIndex: 100,
+        display: 'flex', justifyContent: 'space-around',
+        padding: '12px 0 20px', zIndex: 100,
         boxShadow: 'var(--shadow-lg)'
       }}>
         {[
           { id: 'home', label: 'Home', icon: <Home size={18} /> },
           { id: 'schools', label: 'Schools', icon: <GraduationCap size={18} /> },
-          { id: 'testprep', label: 'Tests', icon: <Award size={18} /> },
+          { id: 'aitutor', label: 'AI Tutor', icon: <Sparkles size={18} /> },
           { id: 'resources', label: 'Library', icon: <FileText size={18} /> },
+          ...(profile.isAdmin ? [{ id: 'admin', label: 'Admin', icon: <Shield size={18} /> }] : []),
           { id: 'settings', label: 'Settings', icon: <Settings size={18} /> },
         ].map(nav => {
           const isActive = activeTab === nav.id;
@@ -1748,12 +2092,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               key={nav.id}
               onClick={() => setActiveTab(nav.id)}
               style={{
-                background: 'none',
-                border: 'none',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
+                background: 'none', border: 'none',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', gap: 4,
                 color: isActive ? 'var(--color-primary)' : 'var(--color-muted)',
                 transition: 'all 0.3s ease'
               }}
@@ -1772,29 +2113,21 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
       {/* --- SCHOOL DETAIL MODAL DIALOG --- */}
       {selectedSchool && (
         <div style={{
-          position: 'fixed',
-          inset: 0,
+          position: 'fixed', inset: 0,
           background: 'rgba(0,0,0,0.6)',
           zIndex: 200,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          backdropFilter: 'blur(4px)'
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, backdropFilter: 'blur(4px)'
         }}>
           <div className="animate-scale-in" style={{
             background: 'var(--color-card)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-lg)',
-            width: '100%',
-            maxWidth: 540,
-            padding: 28,
-            position: 'relative',
-            maxHeight: '85vh',
-            overflowY: 'auto'
+            width: '100%', maxWidth: 560, padding: 28,
+            position: 'relative', maxHeight: '85vh', overflowY: 'auto'
           }}>
             <button 
-              onClick={() => setSelectedSchool(null)}
+              onClick={() => { setSelectedSchool(null); setNewComment(''); }}
               style={{ position: 'absolute', top: 20, right: 20, background: 'none', color: 'var(--color-dark)' }}
             >
               <X size={20} />
@@ -1802,12 +2135,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             <span style={{
               background: 'var(--color-primary-light)15',
               color: 'var(--color-primary-dark)',
-              padding: '4px 10px',
-              borderRadius: 4,
-              fontSize: 10,
-              fontWeight: 800,
-              display: 'inline-block',
-              marginBottom: 16
+              padding: '4px 10px', borderRadius: 4,
+              fontSize: 10, fontWeight: 800,
+              display: 'inline-block', marginBottom: 16
             }}>
               {selectedSchool.curriculum}
             </span>
@@ -1824,12 +2154,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             <div style={{
               background: 'var(--color-light)',
               border: '1px solid var(--color-border)',
-              borderRadius: 8,
-              padding: 16,
-              marginBottom: 24,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12
+              borderRadius: 8, padding: 16, marginBottom: 24,
+              display: 'flex', flexDirection: 'column', gap: 12
             }}>
               <span style={{ fontSize: 12, color: 'var(--color-muted)', display: 'block', fontWeight: 700 }}>
                 QUICK INSTITUTION STATS
@@ -1841,29 +2167,24 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
               <span style={{ fontSize: 12, color: 'var(--color-muted)', fontWeight: 700 }}>CONTACT CHANNELS</span>
               <a href={`tel:${selectedSchool.phone}`} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: 'var(--color-primary)',
-                fontSize: 13,
-                fontWeight: 600
+                display: 'flex', alignItems: 'center', gap: 8,
+                color: 'var(--color-primary)', fontSize: 13, fontWeight: 600
               }}>
                 <Phone size={15} /> Call Administrative Desk ({selectedSchool.phone})
               </a>
               <a href={`mailto:${selectedSchool.email}`} style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                color: 'var(--color-primary)',
-                fontSize: 13,
-                fontWeight: 600
+                display: 'flex', alignItems: 'center', gap: 8,
+                color: 'var(--color-primary)', fontSize: 13, fontWeight: 600
               }}>
                 <Mail size={15} /> Send Admissions Mail ({selectedSchool.email})
               </a>
             </div>
+
+            {/* Social Panel: Likes & Comments */}
+            {renderSocialPanel(selectedSchool.id, 'school')}
           </div>
         </div>
       )}
@@ -1871,29 +2192,21 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
       {/* --- SCHOLARSHIP DETAIL MODAL DIALOG --- */}
       {selectedScholarship && (
         <div style={{
-          position: 'fixed',
-          inset: 0,
+          position: 'fixed', inset: 0,
           background: 'rgba(0,0,0,0.6)',
           zIndex: 200,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 24,
-          backdropFilter: 'blur(4px)'
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, backdropFilter: 'blur(4px)'
         }}>
           <div className="animate-scale-in" style={{
             background: 'var(--color-card)',
             border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-lg)',
-            width: '100%',
-            maxWidth: 560,
-            padding: 28,
-            position: 'relative',
-            maxHeight: '85vh',
-            overflowY: 'auto'
+            width: '100%', maxWidth: 560, padding: 28,
+            position: 'relative', maxHeight: '85vh', overflowY: 'auto'
           }}>
             <button 
-              onClick={() => setSelectedScholarship(null)}
+              onClick={() => { setSelectedScholarship(null); setNewComment(''); }}
               style={{ position: 'absolute', top: 20, right: 20, background: 'none', color: 'var(--color-dark)' }}
             >
               <X size={20} />
@@ -1901,12 +2214,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             <span style={{
               background: 'var(--color-success)15',
               color: 'var(--color-success)',
-              padding: '4px 10px',
-              borderRadius: 4,
-              fontSize: 10,
-              fontWeight: 800,
-              display: 'inline-block',
-              marginBottom: 16
+              padding: '4px 10px', borderRadius: 4,
+              fontSize: 10, fontWeight: 800,
+              display: 'inline-block', marginBottom: 16
             }}>
               {selectedScholarship.amount}
             </span>
@@ -1944,7 +2254,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               </ul>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 18 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 18, marginBottom: 8 }}>
               <span style={{ fontSize: 12, color: 'red', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
                 <Calendar size={14} /> Close Date: {selectedScholarship.deadline}
               </span>
@@ -1953,17 +2263,144 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                 target="_blank" 
                 rel="noopener noreferrer"
                 style={{
-                  background: 'var(--color-primary)',
-                  color: '#fff',
-                  padding: '10px 20px',
-                  borderRadius: 6,
-                  fontWeight: 600,
-                  fontSize: 12
+                  background: 'var(--color-primary)', color: '#fff',
+                  padding: '10px 20px', borderRadius: 6,
+                  fontWeight: 600, fontSize: 12
                 }}
               >
                 Apply Externally
               </a>
             </div>
+
+            {/* Social Panel: Likes & Comments */}
+            {renderSocialPanel(selectedScholarship.id, 'scholarship')}
+          </div>
+        </div>
+      )}
+
+      {/* --- AUTH MODAL (Browser Only) --- */}
+      {showAuthModal && (
+        <div style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.65)',
+          zIndex: 300,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24, backdropFilter: 'blur(8px)'
+        }}>
+          <div className="animate-scale-in" style={{
+            background: 'var(--color-card)',
+            borderRadius: 'var(--radius-xl)',
+            width: '100%', maxWidth: 420, padding: '40px 32px',
+            position: 'relative',
+            boxShadow: 'var(--shadow-xl)'
+          }}>
+            <button 
+              onClick={() => { setShowAuthModal(false); setAuthError(''); }}
+              style={{ position: 'absolute', top: 20, right: 20, background: 'none', color: 'var(--color-muted)' }}
+            >
+              <X size={20} />
+            </button>
+
+            {/* Logo */}
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={{
+                width: 56, height: 56, borderRadius: 14,
+                background: 'var(--gradient-warm)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 16px',
+                boxShadow: 'var(--shadow-glow-primary)'
+              }}>
+                <span style={{ fontSize: 24, fontWeight: 900, color: '#fff' }}>KH</span>
+              </div>
+              <h3 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>
+                {authMode === 'login' ? 'Welcome Back' : 'Create Account'}
+              </h3>
+              <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>
+                {authMode === 'login' ? 'Sign in to continue your learning journey' : 'Join KnowHub Ethiopia today'}
+              </p>
+            </div>
+
+            {authError && (
+              <div style={{
+                background: 'rgba(231,76,60,0.08)',
+                border: '1px solid rgba(231,76,60,0.2)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '10px 14px', marginBottom: 20,
+                display: 'flex', alignItems: 'center', gap: 8,
+                fontSize: 12, color: 'var(--color-danger)'
+              }}>
+                <AlertCircle size={14} /> {authError}
+              </div>
+            )}
+
+            <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {authMode === 'signup' && (
+                <input 
+                  className="auth-input"
+                  type="text"
+                  placeholder="Full Name"
+                  value={authName}
+                  onChange={e => setAuthName(e.target.value)}
+                  required
+                />
+              )}
+              <input 
+                className="auth-input"
+                type="email"
+                placeholder="Email Address"
+                value={authEmail}
+                onChange={e => setAuthEmail(e.target.value)}
+                required
+              />
+              <div style={{ position: 'relative' }}>
+                <input 
+                  className="auth-input"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Password"
+                  value={authPassword}
+                  onChange={e => setAuthPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  style={{ paddingRight: 44 }}
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', color: 'var(--color-muted)'
+                  }}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+
+              <button type="submit" disabled={authLoading}
+                style={{
+                  background: 'var(--gradient-warm)',
+                  color: '#fff', borderRadius: 'var(--radius-md)',
+                  padding: '14px', fontSize: 15, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  marginTop: 8, opacity: authLoading ? 0.7 : 1,
+                  boxShadow: 'var(--shadow-glow-primary)'
+                }}
+              >
+                {authLoading ? (
+                  <><Loader size={16} className="animate-rotate" /> Processing...</>
+                ) : authMode === 'login' ? (
+                  <><LogIn size={16} /> Sign In</>
+                ) : (
+                  <><UserPlus size={16} /> Create Account</>
+                )}
+              </button>
+            </form>
+
+            <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--color-muted)', marginTop: 20 }}>
+              {authMode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+              <button onClick={() => { setAuthMode(authMode === 'login' ? 'signup' : 'login'); setAuthError(''); }}
+                style={{ background: 'none', color: 'var(--color-primary)', fontWeight: 700, fontSize: 13 }}
+              >
+                {authMode === 'login' ? 'Sign Up' : 'Sign In'}
+              </button>
+            </p>
           </div>
         </div>
       )}

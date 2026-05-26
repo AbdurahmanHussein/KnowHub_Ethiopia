@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS bookmarks (
   UNIQUE(user_id, item_id, item_type)
 );
 
--- 7. Create User Profiles Table
+-- 7. Create User Profiles Table (with admin flag for Phase 3)
 CREATE TABLE IF NOT EXISTS profiles (
   user_id TEXT PRIMARY KEY,       -- Telegram User ID or unique guest identifier
   username TEXT,
@@ -96,7 +96,30 @@ CREATE TABLE IF NOT EXISTS profiles (
   grade_level TEXT DEFAULT 'all', -- 'middle', 'high', 'university', 'all'
   preferred_subjects TEXT[] DEFAULT '{}',
   language TEXT DEFAULT 'en',     -- 'en' or 'am' (Amharic)
+  is_admin BOOLEAN DEFAULT false, -- Phase 3: Admin Console access flag
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 8. Create Likes Table (Phase 3: Social interactions)
+CREATE TABLE IF NOT EXISTS likes (
+  id BIGSERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  item_type TEXT NOT NULL,        -- 'school', 'scholarship', 'opportunity', 'skill', 'resource'
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  UNIQUE(user_id, item_id, item_type)
+);
+
+-- 9. Create Comments Table (Phase 3: Discussion boards)
+CREATE TABLE IF NOT EXISTS comments (
+  id BIGSERIAL PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  item_id TEXT NOT NULL,
+  item_type TEXT NOT NULL,        -- 'school', 'scholarship', 'opportunity', 'skill', 'resource'
+  username TEXT,
+  first_name TEXT,
+  content TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
 -- Enable Row Level Security (optional but default in Supabase)
@@ -108,6 +131,8 @@ ALTER TABLE skills ENABLE ROW LEVEL SECURITY;
 ALTER TABLE resources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bookmarks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE likes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 
 -- Create Open Select Policies for public data
 CREATE POLICY "Allow public read access to schools" ON schools FOR SELECT USING (true);
@@ -129,6 +154,17 @@ CREATE POLICY "Allow public delete of opportunities" ON opportunities FOR DELETE
 CREATE POLICY "Allow public delete of skills" ON skills FOR DELETE USING (true);
 CREATE POLICY "Allow public delete of resources" ON resources FOR DELETE USING (true);
 
+-- Create update policies for admin CRUD
+CREATE POLICY "Allow public update of schools" ON schools FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public update of scholarships" ON scholarships FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public update of opportunities" ON opportunities FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public update of skills" ON skills FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public update of resources" ON resources FOR UPDATE USING (true) WITH CHECK (true);
+
 -- Create Read/Write Policies for Bookmarks & Profiles (user specific)
 CREATE POLICY "Allow all access to bookmarks" ON bookmarks FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow all access to profiles" ON profiles FOR ALL USING (true) WITH CHECK (true);
+
+-- Create Read/Write Policies for Likes & Comments
+CREATE POLICY "Allow all access to likes" ON likes FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow all access to comments" ON comments FOR ALL USING (true) WITH CHECK (true);
