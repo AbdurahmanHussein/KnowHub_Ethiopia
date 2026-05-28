@@ -2,19 +2,21 @@
 -- KnowHub Ethiopia — Supabase Database Schema
 -- ==========================================
 
--- 1. Create Schools Table
-CREATE TABLE IF NOT EXISTS schools (
+-- 1. Create Institutions Table
+CREATE TABLE IF NOT EXISTS institutions (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   city TEXT NOT NULL,
-  region TEXT NOT NULL,
-  curriculum TEXT NOT NULL,
+  country TEXT NOT NULL,
+  acceptance_rate TEXT NOT NULL,
+  focus_popularity TEXT NOT NULL,
+  scholarship_details TEXT NOT NULL,
+  ethiopian_success TEXT NOT NULL,
   rating NUMERIC DEFAULT 0,
-  established INTEGER,
-  student_count INTEGER,
   phone TEXT,
   email TEXT,
   description TEXT,
+  link TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
@@ -124,7 +126,7 @@ CREATE TABLE IF NOT EXISTS comments (
 
 -- Enable Row Level Security (optional but default in Supabase)
 -- For absolute simplicity for the user, we will keep policies highly open.
-ALTER TABLE schools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE institutions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scholarships ENABLE ROW LEVEL SECURITY;
 ALTER TABLE opportunities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE skills ENABLE ROW LEVEL SECURITY;
@@ -135,27 +137,27 @@ ALTER TABLE likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE comments ENABLE ROW LEVEL SECURITY;
 
 -- Create Open Select Policies for public data
-CREATE POLICY "Allow public read access to schools" ON schools FOR SELECT USING (true);
+CREATE POLICY "Allow public read access to institutions" ON institutions FOR SELECT USING (true);
 CREATE POLICY "Allow public read access to scholarships" ON scholarships FOR SELECT USING (true);
 CREATE POLICY "Allow public read access to opportunities" ON opportunities FOR SELECT USING (true);
 CREATE POLICY "Allow public read access to skills" ON skills FOR SELECT USING (true);
 CREATE POLICY "Allow public read access to resources" ON resources FOR SELECT USING (true);
 
 -- Create Write/Seeding Policies for public data
-CREATE POLICY "Allow public insert to schools" ON schools FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public insert to institutions" ON institutions FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert to scholarships" ON scholarships FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert to opportunities" ON opportunities FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert to skills" ON skills FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public insert to resources" ON resources FOR INSERT WITH CHECK (true);
 
-CREATE POLICY "Allow public delete of schools" ON schools FOR DELETE USING (true);
+CREATE POLICY "Allow public delete of institutions" ON institutions FOR DELETE USING (true);
 CREATE POLICY "Allow public delete of scholarships" ON scholarships FOR DELETE USING (true);
 CREATE POLICY "Allow public delete of opportunities" ON opportunities FOR DELETE USING (true);
 CREATE POLICY "Allow public delete of skills" ON skills FOR DELETE USING (true);
 CREATE POLICY "Allow public delete of resources" ON resources FOR DELETE USING (true);
 
 -- Create update policies for admin CRUD
-CREATE POLICY "Allow public update of schools" ON schools FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public update of institutions" ON institutions FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public update of scholarships" ON scholarships FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public update of opportunities" ON opportunities FOR UPDATE USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public update of skills" ON skills FOR UPDATE USING (true) WITH CHECK (true);

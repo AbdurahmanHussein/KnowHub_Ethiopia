@@ -99,8 +99,13 @@ Keep responses concise (under 200 words), encouraging, and practical. Use simple
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Gemini API error:', response.status, errorText);
+      let parsedError = errorText;
+      try {
+        const jsonErr = JSON.parse(errorText);
+        parsedError = jsonErr?.error?.message || errorText;
+      } catch {}
       return res.status(200).json({
-        reply: "I'm having trouble connecting right now. Please try again in a moment, or explore the Schools and Scholarships tabs for immediate help!",
+        reply: `I'm having trouble connecting right now (Gemini API Error ${response.status}: ${parsedError}). Please try again in a moment, or explore the Institutions and Scholarships tabs for immediate help!`,
         offline: true
       });
     }

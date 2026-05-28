@@ -65,7 +65,7 @@ const quizQuestions = {
 
 export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding }) {
   const [activeTab, setActiveTab] = useState('home');
-  const [exploreTab, setExploreTab] = useState('schools');
+  const [exploreTab, setExploreTab] = useState('institutions');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
 
   // Handle bot deep-linking / tab query parameter
@@ -73,7 +73,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     const params = new URLSearchParams(window.location.search);
     const tabParam = params.get('tab')?.toLowerCase();
     const validMainTabs = ['home', 'resources', 'aitutor', 'progress', 'settings', 'admin'];
-    const validExploreTabs = ['schools', 'scholarships', 'opportunities', 'skills', 'testprep'];
+    const validExploreTabs = ['institutions', 'schools', 'scholarships', 'opportunities', 'skills', 'testprep'];
     
     if (tabParam) {
       if (validMainTabs.includes(tabParam)) {
@@ -107,7 +107,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
 
   // Search & Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [schoolFilter, setSchoolFilter] = useState('all');
+  const [institutionFilter, setInstitutionFilter] = useState('all');
   const [scholarshipFilter, setScholarshipFilter] = useState('all');
   const [resourceFilter, setResourceFilter] = useState('all');
   const [skillFilter, setSkillFilter] = useState('all');
@@ -149,7 +149,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
   const [loadingComments, setLoadingComments] = useState(false);
 
   // Admin State
-  const [adminItemType, setAdminItemType] = useState('schools');
+  const [adminItemType, setAdminItemType] = useState('institutions');
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [adminForm, setAdminForm] = useState({});
   const [adminSaving, setAdminSaving] = useState(false);
@@ -184,7 +184,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
         setUserId(uId);
         
         const [schs, schols, opps, sks, res, bms, prof] = await Promise.all([
-          api.getSchools(),
+          api.getInstitutions(),
           api.getScholarships(),
           api.getOpportunities(),
           api.getSkills(),
@@ -371,7 +371,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
       const res = await api.seedDatabase();
       setSeederStatus(res);
       const [schs, schols, opps, sks, resourcesData] = await Promise.all([
-        api.getSchools(),
+        api.getInstitutions(),
         api.getScholarships(),
         api.getOpportunities(),
         api.getSkills(),
@@ -437,7 +437,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
   const handleAdminCreate = async () => {
     setAdminSaving(true);
     let success = false;
-    if (adminItemType === 'schools') success = await api.createSchool(adminForm);
+    if (adminItemType === 'institutions') success = await api.createInstitution(adminForm);
     else if (adminItemType === 'scholarships') success = await api.createScholarship(adminForm);
     else if (adminItemType === 'opportunities') success = await api.createOpportunity(adminForm);
     else if (adminItemType === 'skills') success = await api.createSkill(adminForm);
@@ -445,13 +445,13 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
 
     if (success) {
       // Reload data
-      const fresh = adminItemType === 'schools' ? await api.getSchools()
+      const fresh = adminItemType === 'institutions' ? await api.getInstitutions()
         : adminItemType === 'scholarships' ? await api.getScholarships()
         : adminItemType === 'opportunities' ? await api.getOpportunities()
         : adminItemType === 'skills' ? await api.getSkills()
         : await api.getResources();
       
-      if (adminItemType === 'schools') setSchools(fresh);
+      if (adminItemType === 'institutions') setSchools(fresh);
       else if (adminItemType === 'scholarships') setScholarships(fresh);
       else if (adminItemType === 'opportunities') setOpportunities(fresh);
       else if (adminItemType === 'skills') setSkills(fresh);
@@ -467,7 +467,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     if (!confirm('Are you sure you want to delete this item?')) return;
     const ok = await api.deleteItem(table, id);
     if (ok) {
-      if (table === 'schools') setSchools(prev => prev.filter(s => s.id !== id));
+      if (table === 'institutions') setSchools(prev => prev.filter(s => s.id !== id));
       else if (table === 'scholarships') setScholarships(prev => prev.filter(s => s.id !== id));
       else if (table === 'opportunities') setOpportunities(prev => prev.filter(s => s.id !== id));
       else if (table === 'skills') setSkills(prev => prev.filter(s => s.id !== id));
@@ -634,7 +634,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           }}>
             <Search size={20} color="var(--color-primary)" />
             <input 
-              placeholder="Search schools, scholarships, study materials..."
+              placeholder="Search institutions, scholarships, study materials..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -663,8 +663,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {schools.filter(s => s.name.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 2).map(s => (
                   <div key={s.id} onClick={() => { setSelectedSchool(s); setSearchQuery(''); }} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-                    <span>🏫 {s.name}</span>
-                    <span style={{ color: 'var(--color-muted)' }}>{s.city}</span>
+                    <span>🏛️ {s.name}</span>
+                    <span style={{ color: 'var(--color-muted)' }}>{s.city}, {s.country}</span>
                   </div>
                 ))}
                 {scholarships.filter(s => s.title.toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 2).map(s => (
@@ -714,7 +714,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
             {[
-              { id: 'schools', title: 'Discover Schools', desc: 'Browse 20+ top high schools and public universities inside Ethiopia.', icon: <GraduationCap size={24} color="#fff" />, color: 'var(--color-primary)' },
+              { id: 'institutions', title: 'Global Institutions', desc: 'Explore 20+ world-class universities offering scholarships to international students.', icon: <GraduationCap size={24} color="#fff" />, color: 'var(--color-primary)' },
               { id: 'scholarships', title: 'Scholarships', desc: 'Unlock active funding programs tailored for East African students.', icon: <Compass size={24} color="#fff" />, color: 'var(--color-secondary)' },
               { id: 'opportunities', title: 'Extracurriculars', desc: 'STEM bootcamps, Olympiads, and leadership youth programs.', icon: <Award size={24} color="#fff" />, color: 'var(--color-success)' },
               { id: 'skills', title: 'Skill Development', desc: 'Acquire high-demand technical and business skills for free.', icon: <Lightbulb size={24} color="#fff" />, color: 'var(--color-success-light)' },
@@ -800,98 +800,180 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     );
   };
 
-  // 2. Schools Tab
-  const renderSchools = () => {
+  // 2. Institutions Tab (formerly Schools)
+  const renderInstitutions = () => {
+    const countries = ['all', 'United States', 'United Kingdom', 'Canada', 'Germany', 'China', 'South Korea', 'United Arab Emirates'];
     const filtered = schools.filter(s => {
-      if (schoolFilter !== 'all' && s.curriculum.toLowerCase() !== schoolFilter.toLowerCase()) return false;
-      const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            s.city.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchesSearch;
+      if (institutionFilter !== 'all' && s.country !== institutionFilter) return false;
+      const q = searchQuery.toLowerCase();
+      return s.name.toLowerCase().includes(q) || 
+             (s.city || '').toLowerCase().includes(q) ||
+             (s.country || '').toLowerCase().includes(q) ||
+             (s.focusPopularity || '').toLowerCase().includes(q);
     });
 
     return (
       <div className="animate-fade-in" style={{ padding: '0 24px 40px' }}>
         <div style={{ marginBottom: 28 }}>
-          <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>Discover Schools</h2>
-          <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Browse 20+ verified primary, secondary, and higher institutions in Ethiopia.</p>
+          <h2 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>International Institutions</h2>
+          <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>
+            Explore 20+ world-class universities offering scholarships for international students — with details tailored for Ethiopian applicants.
+          </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 16, marginBottom: 24 }}>
-          {['all', 'Ethiopian National', 'IB', 'IB / Cambridge', 'French Baccalaureate'].map(cur => (
+        {/* Country Filter Chips */}
+        <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 16, marginBottom: 24, scrollbarWidth: 'none' }}>
+          {countries.map(c => (
             <button
-              key={cur}
-              onClick={() => setSchoolFilter(cur)}
+              key={c}
+              onClick={() => setInstitutionFilter(c)}
               style={{
-                padding: '8px 16px',
+                padding: '8px 18px',
                 borderRadius: 'var(--radius-full)',
-                background: schoolFilter === cur ? 'var(--color-primary)' : 'var(--color-card)',
-                color: schoolFilter === cur ? '#fff' : 'var(--color-dark)',
-                border: '1px solid var(--color-border)',
+                background: institutionFilter === c ? 'var(--color-primary)' : 'var(--color-card)',
+                color: institutionFilter === c ? '#fff' : 'var(--color-dark)',
+                border: `1.5px solid ${institutionFilter === c ? 'var(--color-primary)' : 'var(--color-border)'}`,
                 fontWeight: 600, fontSize: 12,
-                whiteSpace: 'nowrap', transition: 'all 0.3s'
+                whiteSpace: 'nowrap', transition: 'all 0.25s',
+                boxShadow: institutionFilter === c ? 'var(--shadow-sm)' : 'none'
               }}
             >
-              {cur === 'all' ? '🏫 All Curriculums' : cur}
+              {c === 'all' ? '🌍 All Countries' : c}
             </button>
           ))}
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
-          {filtered.map(s => (
+        {/* Stats Row */}
+        <div style={{ display: 'flex', gap: 12, marginBottom: 28, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: 'var(--color-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <GraduationCap size={14} color="var(--color-primary)" />
+            {filtered.length} institution{filtered.length !== 1 ? 's' : ''} found
+          </span>
+          {institutionFilter !== 'all' && (
+            <button onClick={() => setInstitutionFilter('all')} style={{ fontSize: 12, color: 'var(--color-primary)', background: 'none', fontWeight: 600 }}>
+              ✕ Clear filter
+            </button>
+          )}
+        </div>
+
+        {/* Institution Cards Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 20 }}>
+          {filtered.map(inst => (
             <div 
-              key={s.id}
+              key={inst.id}
               className="hover-lift"
+              onClick={() => setSelectedSchool(inst)}
               style={{
                 background: 'var(--color-card)',
                 border: '1px solid var(--color-border)',
-                borderRadius: 'var(--radius-md)',
+                borderRadius: 'var(--radius-lg)',
                 padding: 24, position: 'relative',
-                boxShadow: 'var(--shadow-sm)'
+                boxShadow: 'var(--shadow-sm)',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease',
+                overflow: 'hidden'
               }}
             >
+              {/* Accent top bar */}
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, height: 4,
+                background: 'var(--gradient-warm)',
+                borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0'
+              }} />
+
+              {/* Bookmark button */}
               <button 
-                onClick={() => handleToggleBookmark(s, 'school')}
+                onClick={(e) => { e.stopPropagation(); handleToggleBookmark(inst, 'school'); }}
                 style={{
-                  position: 'absolute', top: 20, right: 20,
-                  background: 'none',
-                  color: isBookmarked(s.id, 'school') ? 'var(--color-primary)' : 'var(--color-muted)'
+                  position: 'absolute', top: 20, right: 16,
+                  background: 'var(--color-light)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-full)',
+                  width: 32, height: 32,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: isBookmarked(inst.id, 'school') ? 'var(--color-primary)' : 'var(--color-muted)',
+                  transition: 'all 0.2s'
                 }}
               >
-                <Heart size={20} fill={isBookmarked(s.id, 'school') ? 'var(--color-primary)' : 'none'} />
+                <Heart size={16} fill={isBookmarked(inst.id, 'school') ? 'var(--color-primary)' : 'none'} />
               </button>
-              <span style={{
-                background: 'var(--color-primary-light)15',
-                color: 'var(--color-primary-dark)',
-                padding: '4px 8px', borderRadius: 4,
-                fontSize: 10, fontWeight: 700,
-                display: 'inline-block', marginBottom: 12
-              }}>
-                {s.curriculum}
-              </span>
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, paddingRight: 24 }}>{s.name}</h3>
-              <p style={{ fontSize: 13, color: 'var(--color-muted)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 16 }}>
-                <MapPin size={14} color="var(--color-primary)" /> {s.city}, {s.region}
+
+              {/* Rating Stars */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 14, marginTop: 8 }}>
+                <span style={{ fontSize: 12, color: '#F7A940', fontWeight: 700 }}>
+                  {'★'.repeat(Math.round(inst.rating))}{'☆'.repeat(5 - Math.round(inst.rating))}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--color-muted)', fontWeight: 600 }}>
+                  {inst.rating}/5.0
+                </span>
+              </div>
+
+              {/* Institution name */}
+              <h3 style={{ fontSize: 15, fontWeight: 800, marginBottom: 8, paddingRight: 36, lineHeight: 1.3, color: 'var(--color-dark)' }}>
+                {inst.name}
+              </h3>
+
+              {/* Location */}
+              <p style={{ fontSize: 12, color: 'var(--color-muted)', display: 'flex', alignItems: 'center', gap: 5, marginBottom: 14 }}>
+                <MapPin size={12} color="var(--color-primary)" />
+                {inst.city}, {inst.country}
               </p>
-              
+
+              {/* Description snippet */}
+              <p style={{ fontSize: 12, color: 'var(--color-dark)', opacity: 0.75, lineHeight: 1.5, marginBottom: 16 }}>
+                {(inst.description || '').slice(0, 100)}...
+              </p>
+
+              {/* Acceptance Rate + Focus Tags */}
+              <div style={{
+                background: 'var(--color-light)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 8, padding: '10px 12px', marginBottom: 16
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Acceptance Rate
+                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-primary)' }}>
+                    {inst.acceptanceRate}
+                  </span>
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--color-muted)', margin: 0, lineHeight: 1.4 }}>
+                  <strong style={{ color: 'var(--color-dark)' }}>Focus: </strong>
+                  {(inst.focusPopularity || '').split(',').slice(0, 3).join(', ')}
+                </p>
+              </div>
+
+              {/* View button */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
-                <span style={{ fontSize: 12, color: 'var(--color-muted)' }}>Est. {s.established}</span>
-                <button 
-                  onClick={() => setSelectedSchool(s)}
-                  style={{
-                    background: 'var(--color-secondary)',
-                    color: '#fff', borderRadius: 6,
-                    padding: '8px 16px', fontSize: 12, fontWeight: 600
-                  }}
-                >
-                  View Profile
-                </button>
+                <span style={{ fontSize: 11, color: 'var(--color-success)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Award size={12} /> Scholarships Available
+                </span>
+                <span style={{
+                  background: 'var(--color-secondary)',
+                  color: '#fff', borderRadius: 6,
+                  padding: '7px 16px', fontSize: 12, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', gap: 5
+                }}>
+                  View Details <ChevronRight size={14} />
+                </span>
               </div>
             </div>
           ))}
+
+          {filtered.length === 0 && (
+            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 60 }}>
+              <GraduationCap size={44} color="var(--color-muted)" style={{ margin: '0 auto 12px' }} />
+              <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>No institutions found</p>
+              <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>Try a different country filter or search term.</p>
+            </div>
+          )}
         </div>
       </div>
     );
   };
+
+
 
   // 3. Scholarships Tab
   const renderScholarships = () => {
@@ -1765,7 +1847,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               ) : (
                 <div style={{ color: 'var(--color-success)', fontSize: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <p>✓ Database populated successfully!</p>
-                  <span>🏫 Schools seeded: {seederStatus.schools}</span>
+                  <span>🏫 Institutions seeded: {seederStatus.schools}</span>
                   <span>💰 Scholarships seeded: {seederStatus.scholarships}</span>
                   <span>🚀 Opportunities seeded: {seederStatus.opportunities}</span>
                   <span>💡 Skills seeded: {seederStatus.skills}</span>
@@ -1787,7 +1869,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             <Heart size={18} color="red" fill="red" /> Saved Bookmark Lists ({bookmarks.length})
           </h3>
           {bookmarks.length === 0 ? (
-            <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>You haven't bookmarked any items yet. Navigate through schools or scholarships and tap the heart icon to save them here.</p>
+            <p style={{ fontSize: 13, color: 'var(--color-muted)' }}>You haven't bookmarked any items yet. Navigate through institutions or scholarships and tap the heart icon to save them here.</p>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {bookmarks.map((bm, idx) => (
@@ -1824,7 +1906,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
 
   // 11. Admin Tab (Phase 3)
   const renderAdmin = () => {
-    const currentItems = adminItemType === 'schools' ? schools
+    const currentItems = adminItemType === 'institutions' ? schools
       : adminItemType === 'scholarships' ? scholarships
       : adminItemType === 'opportunities' ? opportunities
       : adminItemType === 'skills' ? skills
@@ -1849,7 +1931,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
 
         {/* Item Type Selector */}
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', paddingBottom: 16, marginBottom: 24 }}>
-          {['schools', 'scholarships', 'opportunities', 'skills', 'resources'].map(type => (
+          {['institutions', 'scholarships', 'opportunities', 'skills', 'resources'].map(type => (
             <button key={type} onClick={() => { setAdminItemType(type); setShowAdminForm(false); }}
               style={{
                 padding: '8px 16px', borderRadius: 'var(--radius-full)',
@@ -1890,15 +1972,20 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               Create New {adminItemType.slice(0, -1)}
             </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              {adminItemType === 'schools' && (
+              {adminItemType === 'institutions' && (
                 <>
-                  <input className="admin-input" placeholder="School Name *" value={adminForm.name || ''} onChange={e => setAdminForm({...adminForm, name: e.target.value})} />
+                  <input className="admin-input" placeholder="Institution Name *" value={adminForm.name || ''} onChange={e => setAdminForm({...adminForm, name: e.target.value})} />
+                  <input className="admin-input" placeholder="Country *" value={adminForm.country || ''} onChange={e => setAdminForm({...adminForm, country: e.target.value})} />
                   <input className="admin-input" placeholder="City *" value={adminForm.city || ''} onChange={e => setAdminForm({...adminForm, city: e.target.value})} />
-                  <input className="admin-input" placeholder="Region *" value={adminForm.region || ''} onChange={e => setAdminForm({...adminForm, region: e.target.value})} />
-                  <input className="admin-input" placeholder="Curriculum *" value={adminForm.curriculum || ''} onChange={e => setAdminForm({...adminForm, curriculum: e.target.value})} />
+                  <input className="admin-input" placeholder="Acceptance Rate (e.g., 15%) *" value={adminForm.acceptanceRate || ''} onChange={e => setAdminForm({...adminForm, acceptanceRate: e.target.value})} />
+                  <input className="admin-input" type="number" step="0.1" min="0" max="5" placeholder="Rating (0.0 - 5.0)" value={adminForm.rating || ''} onChange={e => setAdminForm({...adminForm, rating: parseFloat(e.target.value) || 0})} />
+                  <input className="admin-input" placeholder="Academic Focus / Popularity *" value={adminForm.focusPopularity || ''} onChange={e => setAdminForm({...adminForm, focusPopularity: e.target.value})} />
                   <input className="admin-input" placeholder="Phone" value={adminForm.phone || ''} onChange={e => setAdminForm({...adminForm, phone: e.target.value})} />
                   <input className="admin-input" placeholder="Email" value={adminForm.email || ''} onChange={e => setAdminForm({...adminForm, email: e.target.value})} />
-                  <textarea className="admin-input" placeholder="Description" style={{ gridColumn: '1/-1', minHeight: 80, resize: 'vertical' }} value={adminForm.description || ''} onChange={e => setAdminForm({...adminForm, description: e.target.value})} />
+                  <input className="admin-input" placeholder="Website Link (URL)" style={{ gridColumn: '1/-1' }} value={adminForm.link || ''} onChange={e => setAdminForm({...adminForm, link: e.target.value})} />
+                  <textarea className="admin-input" placeholder="Scholarship & Financial Aid Details *" style={{ gridColumn: '1/-1', minHeight: 80, resize: 'vertical' }} value={adminForm.scholarshipDetails || ''} onChange={e => setAdminForm({...adminForm, scholarshipDetails: e.target.value})} />
+                  <textarea className="admin-input" placeholder="Ethiopian Student Success Stories *" style={{ gridColumn: '1/-1', minHeight: 80, resize: 'vertical' }} value={adminForm.ethiopianSuccess || ''} onChange={e => setAdminForm({...adminForm, ethiopianSuccess: e.target.value})} />
+                  <textarea className="admin-input" placeholder="General Description" style={{ gridColumn: '1/-1', minHeight: 80, resize: 'vertical' }} value={adminForm.description || ''} onChange={e => setAdminForm({...adminForm, description: e.target.value})} />
                 </>
               )}
               {adminItemType === 'scholarships' && (
@@ -2039,7 +2126,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
               color: 'rgba(255, 255, 255, 0.75)',
               maxWidth: 480, lineHeight: 1.5, margin: 0
             }}>
-              Access all catalog databases for schools, funding, STEM bootcamps, free skills courses, and English test preparations.
+              Access all catalog databases for institutions, funding, STEM bootcamps, free skills courses, and English test preparations.
             </p>
           </div>
         </div>
@@ -2057,7 +2144,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
             background: 'var(--color-card)'
           }}>
             {[
-              { id: 'schools', label: 'Schools', icon: <GraduationCap size={16} /> },
+              { id: 'institutions', label: 'Institutions', icon: <GraduationCap size={16} /> },
               { id: 'scholarships', label: 'Scholarships', icon: <Compass size={16} /> },
               { id: 'opportunities', label: 'Opportunities', icon: <Award size={16} /> },
               { id: 'skills', label: 'Skills', icon: <Lightbulb size={16} /> },
@@ -2096,7 +2183,8 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
 
         {/* Tab content */}
         <div>
-          {exploreTab === 'schools' && renderSchools()}
+          {exploreTab === 'institutions' && renderInstitutions()}
+          {exploreTab === 'schools' && renderInstitutions()}
           {exploreTab === 'scholarships' && renderScholarships()}
           {exploreTab === 'opportunities' && renderOpportunities()}
           {exploreTab === 'skills' && renderSkills()}
@@ -2237,173 +2325,399 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
         })}
       </nav>
 
-      {/* --- SCHOOL DETAIL MODAL DIALOG --- */}
+      {/* --- INSTITUTION DETAIL MODAL DIALOG (Wide 2-Column) --- */}
       {selectedSchool && (
         <div style={{
           position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.6)',
+          background: 'rgba(0,0,0,0.65)',
           zIndex: 200,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 24, backdropFilter: 'blur(4px)'
+          padding: '16px', backdropFilter: 'blur(6px)'
         }}>
           <div className="animate-scale-in" style={{
             background: 'var(--color-card)',
             border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            width: '100%', maxWidth: 560, padding: 28,
-            position: 'relative', maxHeight: '85vh', overflowY: 'auto'
+            borderRadius: 'var(--radius-xl)',
+            width: '100%', maxWidth: 1000,
+            position: 'relative', maxHeight: '92vh', overflowY: 'auto',
+            boxShadow: 'var(--shadow-xl)'
           }}>
-            <button 
-              onClick={() => { setSelectedSchool(null); setNewComment(''); }}
-              style={{ position: 'absolute', top: 20, right: 20, background: 'none', color: 'var(--color-dark)' }}
-            >
-              <X size={20} />
-            </button>
-            <span style={{
-              background: 'var(--color-primary-light)15',
-              color: 'var(--color-primary-dark)',
-              padding: '4px 10px', borderRadius: 4,
-              fontSize: 10, fontWeight: 800,
-              display: 'inline-block', marginBottom: 16
-            }}>
-              {selectedSchool.curriculum}
-            </span>
-            <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{selectedSchool.name}</h3>
-            
-            <p style={{ fontSize: 13, color: 'var(--color-muted)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20 }}>
-              <MapPin size={15} color="var(--color-primary)" /> {selectedSchool.city}, {selectedSchool.region}
-            </p>
-
-            <p style={{ fontSize: 14, color: 'var(--color-dark)', opacity: 0.9, lineHeight: 1.6, marginBottom: 24 }}>
-              {selectedSchool.description}
-            </p>
-
+            {/* Modal Header */}
             <div style={{
-              background: 'var(--color-light)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 8, padding: 16, marginBottom: 24,
-              display: 'flex', flexDirection: 'column', gap: 12
+              background: 'linear-gradient(135deg, var(--color-secondary) 0%, var(--color-primary-dark) 100%)',
+              padding: '28px 32px',
+              borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
+              position: 'relative', overflow: 'hidden'
             }}>
-              <span style={{ fontSize: 12, color: 'var(--color-muted)', display: 'block', fontWeight: 700 }}>
-                QUICK INSTITUTION STATS
+              <div style={{
+                position: 'absolute', width: 200, height: 200, borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(212,103,46,0.2) 0%, transparent 70%)',
+                top: '-30%', right: '-5%', pointerEvents: 'none'
+              }} />
+              <button 
+                onClick={() => { setSelectedSchool(null); setNewComment(''); }}
+                style={{
+                  position: 'absolute', top: 20, right: 20,
+                  background: 'rgba(255,255,255,0.15)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 'var(--radius-full)',
+                  width: 36, height: 36, color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+              >
+                <X size={18} />
+              </button>
+              <span style={{
+                background: 'rgba(255,255,255,0.15)',
+                color: 'rgba(255,255,255,0.9)',
+                padding: '4px 12px', borderRadius: 'var(--radius-full)',
+                fontSize: 11, fontWeight: 700,
+                display: 'inline-block', marginBottom: 12, letterSpacing: 0.5, textTransform: 'uppercase'
+              }}>
+                🌍 {selectedSchool.country}
               </span>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, fontSize: 13 }}>
-                <span>Established: {selectedSchool.established}</span>
-                <span>Students: {selectedSchool.studentCount}+</span>
-                <span>Rating score: ★ {selectedSchool.rating}</span>
+              <h2 style={{ fontSize: 'clamp(18px,3vw,26px)', fontWeight: 900, color: '#fff', marginBottom: 8, lineHeight: 1.2 }}>
+                {selectedSchool.name}
+              </h2>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                <MapPin size={13} />
+                {selectedSchool.city}, {selectedSchool.country}
+                <span style={{ marginLeft: 12, color: '#F7A940', fontWeight: 700 }}>
+                  {'★'.repeat(Math.round(selectedSchool.rating || 0))} {selectedSchool.rating}/5
+                </span>
+              </p>
+            </div>
+
+            {/* 2-column body */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) 300px',
+              gap: 0
+            }} className="modal-two-col">
+              {/* LEFT COLUMN */}
+              <div style={{ padding: '28px 32px', borderRight: '1px solid var(--color-border)' }}>
+
+                {/* About */}
+                <section style={{ marginBottom: 28 }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>About</h4>
+                  <p style={{ fontSize: 14, color: 'var(--color-dark)', opacity: 0.9, lineHeight: 1.7, margin: 0 }}>
+                    {selectedSchool.description}
+                  </p>
+                </section>
+
+                {/* Focus / Popularity */}
+                <section style={{ marginBottom: 28 }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Academic Focus & Popularity</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {(selectedSchool.focusPopularity || '').split(',').map((f, idx) => (
+                      <span key={idx} style={{
+                        background: 'var(--color-light)',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: 'var(--radius-full)',
+                        padding: '5px 12px',
+                        fontSize: 12, fontWeight: 600, color: 'var(--color-secondary)'
+                      }}>{f.trim()}</span>
+                    ))}
+                  </div>
+                </section>
+
+                {/* Scholarship Details */}
+                <section style={{
+                  background: 'linear-gradient(135deg, rgba(43,122,104,0.06) 0%, rgba(43,122,104,0.02) 100%)',
+                  border: '1px solid rgba(43,122,104,0.2)',
+                  borderRadius: 'var(--radius-md)', padding: 20, marginBottom: 28
+                }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-success)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Award size={14} /> Scholarship & Financial Aid Details
+                  </h4>
+                  <p style={{ fontSize: 13.5, color: 'var(--color-dark)', lineHeight: 1.6, margin: 0 }}>
+                    {selectedSchool.scholarshipDetails}
+                  </p>
+                </section>
+
+                {/* Ethiopian Success Stories */}
+                <section style={{
+                  background: 'linear-gradient(135deg, rgba(247,169,64,0.07) 0%, rgba(212,103,46,0.04) 100%)',
+                  border: '1px solid rgba(247,169,64,0.25)',
+                  borderRadius: 'var(--radius-md)', padding: 20, marginBottom: 28
+                }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-primary)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    🇪🇹 Ethiopian Students Success
+                  </h4>
+                  <p style={{ fontSize: 13.5, color: 'var(--color-dark)', lineHeight: 1.6, margin: 0 }}>
+                    {selectedSchool.ethiopianSuccess}
+                  </p>
+                </section>
+
+                {/* Discussion Panel */}
+                {renderSocialPanel(selectedSchool.id, 'school')}
+              </div>
+
+              {/* RIGHT COLUMN SIDEBAR */}
+              <div style={{ padding: '28px 24px', background: 'var(--color-surface)' }}>
+
+                {/* Bookmark + Actions */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+                  <button 
+                    onClick={() => handleToggleBookmark(selectedSchool, 'school')}
+                    style={{
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      background: isBookmarked(selectedSchool.id, 'school') ? 'rgba(212,103,46,0.1)' : 'var(--color-card)',
+                      border: `1.5px solid ${isBookmarked(selectedSchool.id, 'school') ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                      borderRadius: 8, padding: '10px',
+                      color: isBookmarked(selectedSchool.id, 'school') ? 'var(--color-primary)' : 'var(--color-muted)',
+                      fontWeight: 700, fontSize: 12, transition: 'all 0.2s'
+                    }}
+                  >
+                    <Heart size={15} fill={isBookmarked(selectedSchool.id, 'school') ? 'var(--color-primary)' : 'none'} />
+                    {isBookmarked(selectedSchool.id, 'school') ? 'Saved' : 'Save'}
+                  </button>
+                  {selectedSchool.link && (
+                    <a 
+                      href={selectedSchool.link} target="_blank" rel="noopener noreferrer"
+                      style={{
+                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        background: 'var(--color-secondary)', color: '#fff',
+                        borderRadius: 8, padding: '10px',
+                        fontWeight: 700, fontSize: 12
+                      }}
+                    >
+                      <Globe size={14} /> Visit Website
+                    </a>
+                  )}
+                </div>
+
+                {/* Quick Stats Cards */}
+                <h4 style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Quick Facts</h4>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                  {[
+                    { label: 'Acceptance Rate', value: selectedSchool.acceptanceRate, color: 'var(--color-primary)', icon: '📊' },
+                    { label: 'Rating Score', value: `★ ${selectedSchool.rating} / 5.0`, color: '#F7A940', icon: '⭐' },
+                    { label: 'Location', value: `${selectedSchool.city}, ${selectedSchool.country}`, color: 'var(--color-secondary)', icon: '📍' },
+                  ].map(stat => (
+                    <div key={stat.label} style={{
+                      background: 'var(--color-card)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)', padding: '12px 14px'
+                    }}>
+                      <span style={{ fontSize: 11, color: 'var(--color-muted)', display: 'block', marginBottom: 4 }}>{stat.icon} {stat.label}</span>
+                      <strong style={{ fontSize: 14, color: stat.color }}>{stat.value}</strong>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Contact Links */}
+                <h4 style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Contact</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {selectedSchool.phone && (
+                    <a href={`tel:${selectedSchool.phone}`} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      background: 'var(--color-card)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 8, padding: '10px 12px',
+                      color: 'var(--color-dark)', fontSize: 12, fontWeight: 600
+                    }}>
+                      <Phone size={13} color="var(--color-primary)" /> {selectedSchool.phone}
+                    </a>
+                  )}
+                  {selectedSchool.email && (
+                    <a href={`mailto:${selectedSchool.email}`} style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      background: 'var(--color-card)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 8, padding: '10px 12px',
+                      color: 'var(--color-dark)', fontSize: 12, fontWeight: 600
+                    }}>
+                      <Mail size={13} color="var(--color-primary)" /> {selectedSchool.email}
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: 'var(--color-muted)', fontWeight: 700 }}>CONTACT CHANNELS</span>
-              <a href={`tel:${selectedSchool.phone}`} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                color: 'var(--color-primary)', fontSize: 13, fontWeight: 600
-              }}>
-                <Phone size={15} /> Call Administrative Desk ({selectedSchool.phone})
-              </a>
-              <a href={`mailto:${selectedSchool.email}`} style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                color: 'var(--color-primary)', fontSize: 13, fontWeight: 600
-              }}>
-                <Mail size={15} /> Send Admissions Mail ({selectedSchool.email})
-              </a>
-            </div>
-
-            {/* Social Panel: Likes & Comments */}
-            {renderSocialPanel(selectedSchool.id, 'school')}
           </div>
         </div>
       )}
 
-      {/* --- SCHOLARSHIP DETAIL MODAL DIALOG --- */}
+
+
+
+      {/* --- SCHOLARSHIP DETAIL MODAL DIALOG (Wide 2-Column) --- */}
       {selectedScholarship && (
         <div style={{
           position: 'fixed', inset: 0,
-          background: 'rgba(0,0,0,0.6)',
+          background: 'rgba(0,0,0,0.65)',
           zIndex: 200,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 24, backdropFilter: 'blur(4px)'
+          padding: '16px', backdropFilter: 'blur(6px)'
         }}>
           <div className="animate-scale-in" style={{
             background: 'var(--color-card)',
             border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-lg)',
-            width: '100%', maxWidth: 560, padding: 28,
-            position: 'relative', maxHeight: '85vh', overflowY: 'auto'
+            borderRadius: 'var(--radius-xl)',
+            width: '100%', maxWidth: 1000,
+            position: 'relative', maxHeight: '92vh', overflowY: 'auto',
+            boxShadow: 'var(--shadow-xl)'
           }}>
-            <button 
-              onClick={() => { setSelectedScholarship(null); setNewComment(''); }}
-              style={{ position: 'absolute', top: 20, right: 20, background: 'none', color: 'var(--color-dark)' }}
-            >
-              <X size={20} />
-            </button>
-            <span style={{
-              background: 'var(--color-success)15',
-              color: 'var(--color-success)',
-              padding: '4px 10px', borderRadius: 4,
-              fontSize: 10, fontWeight: 800,
-              display: 'inline-block', marginBottom: 16
+            {/* Modal Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #1a5c35 0%, var(--color-success) 100%)',
+              padding: '28px 32px',
+              borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
+              position: 'relative', overflow: 'hidden'
             }}>
-              {selectedScholarship.amount}
-            </span>
-            <h3 style={{ fontSize: 20, fontWeight: 800, marginBottom: 6 }}>{selectedScholarship.title}</h3>
-            <p style={{ fontSize: 13, color: 'var(--color-muted)', marginBottom: 20 }}>
-              {selectedScholarship.organization} • {selectedScholarship.region}
-            </p>
-
-            <div style={{ marginBottom: 20 }}>
-              <span style={{ fontSize: 12, color: 'var(--color-muted)', fontWeight: 700, display: 'block', marginBottom: 6 }}>
-                ELIGIBILITY LIMITS
-              </span>
-              <p style={{ fontSize: 14, margin: 0, fontWeight: 600, color: 'var(--color-dark)' }}>
-                {selectedScholarship.eligibility}
-              </p>
-            </div>
-
-            <div style={{ marginBottom: 24 }}>
-              <span style={{ fontSize: 12, color: 'var(--color-muted)', fontWeight: 700, display: 'block', marginBottom: 6 }}>
-                PROGRAM DESCRIPTION
-              </span>
-              <p style={{ fontSize: 13.5, color: 'var(--color-dark)', opacity: 0.9, lineHeight: 1.5, margin: 0 }}>
-                {selectedScholarship.description}
-              </p>
-            </div>
-
-            <div style={{ marginBottom: 28 }}>
-              <span style={{ fontSize: 12, color: 'var(--color-muted)', fontWeight: 700, display: 'block', marginBottom: 10 }}>
-                DOCUMENTS / REQUIREMENTS
-              </span>
-              <ul style={{ paddingLeft: 20, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {selectedScholarship.requirements.map(req => (
-                  <li key={req} style={{ color: 'var(--color-dark)' }}>{req}</li>
-                ))}
-              </ul>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--color-border)', paddingTop: 18, marginBottom: 8 }}>
-              <span style={{ fontSize: 12, color: 'red', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Calendar size={14} /> Close Date: {selectedScholarship.deadline}
-              </span>
-              <a 
-                href={selectedScholarship.link} 
-                target="_blank" 
-                rel="noopener noreferrer"
+              <div style={{
+                position: 'absolute', width: 200, height: 200, borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(255,255,255,0.08) 0%, transparent 70%)',
+                top: '-30%', right: '-5%', pointerEvents: 'none'
+              }} />
+              <button 
+                onClick={() => { setSelectedScholarship(null); setNewComment(''); }}
                 style={{
-                  background: 'var(--color-primary)', color: '#fff',
-                  padding: '10px 20px', borderRadius: 6,
-                  fontWeight: 600, fontSize: 12
+                  position: 'absolute', top: 20, right: 20,
+                  background: 'rgba(255,255,255,0.15)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: 'var(--radius-full)',
+                  width: 36, height: 36, color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
                 }}
               >
-                Apply Externally
-              </a>
+                <X size={18} />
+              </button>
+              <span style={{
+                background: 'rgba(255,255,255,0.2)',
+                color: '#fff',
+                padding: '4px 12px', borderRadius: 'var(--radius-full)',
+                fontSize: 11, fontWeight: 700,
+                display: 'inline-block', marginBottom: 12, letterSpacing: 0.5, textTransform: 'uppercase'
+              }}>
+                💰 {selectedScholarship.amount}
+              </span>
+              <h2 style={{ fontSize: 'clamp(18px,3vw,26px)', fontWeight: 900, color: '#fff', marginBottom: 8, lineHeight: 1.2 }}>
+                {selectedScholarship.title}
+              </h2>
+              <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', margin: 0 }}>
+                {selectedScholarship.organization} • {selectedScholarship.region}
+              </p>
             </div>
 
-            {/* Social Panel: Likes & Comments */}
-            {renderSocialPanel(selectedScholarship.id, 'scholarship')}
+            {/* 2-column body */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'minmax(0, 1fr) 280px',
+              gap: 0
+            }} className="modal-two-col">
+              {/* LEFT COLUMN */}
+              <div style={{ padding: '28px 32px', borderRight: '1px solid var(--color-border)' }}>
+                
+                {/* Eligibility */}
+                <section style={{ marginBottom: 24 }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Eligibility</h4>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-dark)', lineHeight: 1.6, margin: 0 }}>
+                    {selectedScholarship.eligibility}
+                  </p>
+                </section>
+
+                {/* Description */}
+                <section style={{ marginBottom: 28 }}>
+                  <h4 style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 }}>Program Description</h4>
+                  <p style={{ fontSize: 14, color: 'var(--color-dark)', opacity: 0.9, lineHeight: 1.7, margin: 0 }}>
+                    {selectedScholarship.description}
+                  </p>
+                </section>
+
+                {/* Requirements */}
+                {selectedScholarship.requirements && selectedScholarship.requirements.length > 0 && (
+                  <section style={{
+                    background: 'var(--color-light)',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-md)', padding: 20, marginBottom: 28
+                  }}>
+                    <h4 style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 14, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      📋 Required Documents
+                    </h4>
+                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {selectedScholarship.requirements.map((req, i) => (
+                        <li key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13 }}>
+                          <span style={{
+                            width: 22, height: 22, borderRadius: '50%',
+                            background: 'var(--color-success)', color: '#fff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 11, fontWeight: 800, flexShrink: 0, marginTop: 1
+                          }}>{i + 1}</span>
+                          <span style={{ color: 'var(--color-dark)', lineHeight: 1.5 }}>{req}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                )}
+
+                {/* Discussion */}
+                {renderSocialPanel(selectedScholarship.id, 'scholarship')}
+              </div>
+
+              {/* RIGHT COLUMN SIDEBAR */}
+              <div style={{ padding: '28px 24px', background: 'var(--color-surface)' }}>
+
+                {/* Bookmark + Apply */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+                  {selectedScholarship.link && (
+                    <a 
+                      href={selectedScholarship.link} target="_blank" rel="noopener noreferrer"
+                      style={{
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        background: 'var(--gradient-warm)', color: '#fff',
+                        borderRadius: 8, padding: '12px',
+                        fontWeight: 700, fontSize: 13,
+                        boxShadow: 'var(--shadow-glow-primary)'
+                      }}
+                    >
+                      <ArrowRight size={15} /> Apply Externally
+                    </a>
+                  )}
+                  <button 
+                    onClick={() => handleToggleBookmark(selectedScholarship, 'scholarship')}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      background: isBookmarked(selectedScholarship.id, 'scholarship') ? 'rgba(212,103,46,0.1)' : 'var(--color-card)',
+                      border: `1.5px solid ${isBookmarked(selectedScholarship.id, 'scholarship') ? 'var(--color-primary)' : 'var(--color-border)'}`,
+                      borderRadius: 8, padding: '10px',
+                      color: isBookmarked(selectedScholarship.id, 'scholarship') ? 'var(--color-primary)' : 'var(--color-muted)',
+                      fontWeight: 700, fontSize: 12
+                    }}
+                  >
+                    <Heart size={14} fill={isBookmarked(selectedScholarship.id, 'scholarship') ? 'var(--color-primary)' : 'none'} />
+                    {isBookmarked(selectedScholarship.id, 'scholarship') ? 'Saved' : 'Save Scholarship'}
+                  </button>
+                </div>
+
+                {/* Key Details */}
+                <h4 style={{ fontSize: 11, fontWeight: 800, color: 'var(--color-muted)', textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 12 }}>Key Details</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                  {[
+                    { label: 'Award Amount', value: selectedScholarship.amount, color: 'var(--color-success)', icon: '💰' },
+                    { label: 'Deadline', value: selectedScholarship.deadline, color: 'var(--color-danger)', icon: '📅' },
+                    { label: 'Region', value: selectedScholarship.region, color: 'var(--color-secondary)', icon: '🌍' },
+                    { label: 'Organization', value: selectedScholarship.organization, color: 'var(--color-info)', icon: '🏛️' },
+                  ].map(stat => (
+                    <div key={stat.label} style={{
+                      background: 'var(--color-card)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: 'var(--radius-md)', padding: '12px 14px'
+                    }}>
+                      <span style={{ fontSize: 11, color: 'var(--color-muted)', display: 'block', marginBottom: 4 }}>{stat.icon} {stat.label}</span>
+                      <strong style={{ fontSize: 13, color: stat.color }}>{stat.value}</strong>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
+
+
+
 
       {/* --- AUTH MODAL (Browser Only) --- */}
       {showAuthModal && (

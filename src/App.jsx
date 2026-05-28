@@ -2,20 +2,53 @@ import { useState, useEffect } from 'react';
 import { useTelegram } from './hooks/useTelegram';
 import LandingPage from './pages/LandingPage';
 import Dashboard from './pages/Dashboard';
+import AuthPage from './pages/AuthPage';
+import { auth } from './supabase';
 import './index.css';
 
 export default function App() {
   const { isTelegram, user, isReady } = useTelegram();
   const [isInApp, setIsInApp] = useState(false);
+  const [showAuth, setShowAuth] = useState(false);
+  const [authUser, setAuthUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
-  // Automatically enter the app if running inside Telegram Mini App environment
+  // Monitor Supabase Auth state changes for browser users
   useEffect(() => {
-    if (isReady && isTelegram) {
-      setIsInApp(true);
+    if (isReady) {
+      if (isTelegram) {
+        setAuthLoading(false);
+        setIsInApp(true); // Automatically enter app in Telegram Mini App environment
+        return;
+      }
+
+      // Check current session
+      auth.getSession().then(({ session }) => {
+        if (session?.user) {
+          setAuthUser(session.user);
+          setIsInApp(true);
+        }
+        setAuthLoading(false);
+      });
+
+      // Listen for session updates
+      const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
+        if (session?.user) {
+          setAuthUser(session.user);
+          setIsInApp(true);
+          setShowAuth(false);
+        } else {
+          setAuthUser(null);
+          setIsInApp(false);
+        }
+        setAuthLoading(false);
+      });
+
+      return () => subscription?.unsubscribe();
     }
   }, [isReady, isTelegram]);
 
-  if (!isReady) {
+  if (!isReady || authLoading) {
     return (
       <div style={{
         minHeight: '100vh',
@@ -51,20 +84,46 @@ export default function App() {
     );
   }
 
+  // If the user has authenticated or is running in Telegram, show the Dashboard (main app)
   if (isInApp) {
     return (
       <Dashboard 
         isTelegram={isTelegram} 
         user={user} 
-        onBackToLanding={() => setIsInApp(false)} 
+        onBackToLanding={() => {
+          if (!isTelegram) {
+            auth.signOut();
+          }
+          setIsInApp(false);
+        }} 
       />
     );
   }
 
+  // If the user wants to sign in/up, show the AuthPage
+  if (showAuth) {
+    return (
+      <AuthPage 
+        onAuthSuccess={() => {
+          setIsInApp(true);
+          setShowAuth(false);
+        }}
+        onBack={() => setShowAuth(false)}
+      />
+    );
+  }
+
+  // Otherwise, show the LandingPage (Default state for guest/unregistered users)
   return (
     <LandingPage 
       isTelegram={isTelegram} 
-      onEnterApp={() => setIsInApp(true)} 
+      onEnterApp={() => {
+        if (authUser || isTelegram) {
+          setIsInApp(true);
+        } else {
+          setShowAuth(true);
+        }
+      }} 
     />
   );
 }

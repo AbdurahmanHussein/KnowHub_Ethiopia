@@ -1,23 +1,25 @@
 import { supabase } from '../supabase';
-import { schools as mockSchools } from '../data/schools';
+import { institutions as mockInstitutions } from '../data/institutions';
 import { scholarships as mockScholarships } from '../data/scholarships';
 import { opportunities as mockOpportunities } from '../data/opportunities';
 import { skills as mockSkills } from '../data/skills';
 import { resources as mockResources } from '../data/resources';
 
 // --- Helper: Map DB keys to Javascript camelCase ---
-const mapSchool = (s) => ({
-  id: s.id,
-  name: s.name,
-  city: s.city,
-  region: s.region,
-  curriculum: s.curriculum,
-  rating: Number(s.rating) || 0,
-  established: s.established,
-  studentCount: s.student_count,
-  phone: s.phone,
-  email: s.email,
-  description: s.description
+const mapInstitution = (i) => ({
+  id: i.id,
+  name: i.name,
+  city: i.city,
+  country: i.country || i.region, // Fallback for region if present
+  acceptanceRate: i.acceptance_rate || i.acceptanceRate || '',
+  focusPopularity: i.focus_popularity || i.focusPopularity || '',
+  scholarshipDetails: i.scholarship_details || i.scholarshipDetails || '',
+  ethiopianSuccess: i.ethiopian_success || i.ethiopianSuccess || '',
+  rating: Number(i.rating) || 0,
+  phone: i.phone,
+  email: i.email,
+  description: i.description,
+  link: i.link
 });
 
 const mapScholarship = (s) => ({
@@ -73,17 +75,17 @@ const mapResource = (r) => ({
 
 // --- API Layer ---
 export const api = {
-  // Fetch Schools
-  getSchools: async () => {
+  // Fetch Institutions
+  getInstitutions: async () => {
     try {
-      const { data, error } = await supabase.from('schools').select('*').order('name');
+      const { data, error } = await supabase.from('institutions').select('*').order('name');
       if (error || !data || data.length === 0) {
-        console.log('Schools fallback to mock data');
-        return mockSchools;
+        console.log('Institutions fallback to mock data');
+        return mockInstitutions;
       }
-      return data.map(mapSchool);
+      return data.map(mapInstitution);
     } catch {
-      return mockSchools;
+      return mockInstitutions;
     }
   },
 
@@ -372,48 +374,52 @@ export const api = {
   // Phase 3: Admin CRUD Operations
   // ================================================
 
-  // --- Schools CRUD ---
-  createSchool: async (schoolData) => {
+  // --- Institutions CRUD ---
+  createInstitution: async (i) => {
     try {
-      const { error } = await supabase.from('schools').insert({
-        id: schoolData.id || `school-${Date.now()}`,
-        name: schoolData.name,
-        city: schoolData.city,
-        region: schoolData.region,
-        curriculum: schoolData.curriculum,
-        rating: schoolData.rating || 0,
-        established: schoolData.established || null,
-        student_count: schoolData.studentCount || null,
-        phone: schoolData.phone || null,
-        email: schoolData.email || null,
-        description: schoolData.description || null
+      const { error } = await supabase.from('institutions').insert({
+        id: i.id || `inst-${Date.now()}`,
+        name: i.name,
+        city: i.city,
+        country: i.country,
+        acceptance_rate: i.acceptanceRate,
+        focus_popularity: i.focusPopularity,
+        scholarship_details: i.scholarshipDetails,
+        ethiopian_success: i.ethiopianSuccess,
+        rating: i.rating || 0,
+        phone: i.phone || null,
+        email: i.email || null,
+        description: i.description || null,
+        link: i.link || null
       });
       if (error) throw error;
       return true;
     } catch (err) {
-      console.error('Create school failed:', err.message);
+      console.error('Create institution failed:', err.message);
       return false;
     }
   },
 
-  updateSchool: async (id, schoolData) => {
+  updateInstitution: async (id, i) => {
     try {
-      const { error } = await supabase.from('schools').update({
-        name: schoolData.name,
-        city: schoolData.city,
-        region: schoolData.region,
-        curriculum: schoolData.curriculum,
-        rating: schoolData.rating || 0,
-        established: schoolData.established || null,
-        student_count: schoolData.studentCount || null,
-        phone: schoolData.phone || null,
-        email: schoolData.email || null,
-        description: schoolData.description || null
+      const { error } = await supabase.from('institutions').update({
+        name: i.name,
+        city: i.city,
+        country: i.country,
+        acceptance_rate: i.acceptanceRate,
+        focus_popularity: i.focusPopularity,
+        scholarship_details: i.scholarshipDetails,
+        ethiopian_success: i.ethiopianSuccess,
+        rating: i.rating || 0,
+        phone: i.phone || null,
+        email: i.email || null,
+        description: i.description || null,
+        link: i.link || null
       }).eq('id', id);
       if (error) throw error;
       return true;
     } catch (err) {
-      console.error('Update school failed:', err.message);
+      console.error('Update institution failed:', err.message);
       return false;
     }
   },
@@ -519,25 +525,27 @@ export const api = {
     };
 
     try {
-      // 1. Seed Schools
-      const dbSchools = mockSchools.map(s => ({
-        id: s.id,
-        name: s.name,
-        city: s.city,
-        region: s.region,
-        curriculum: s.curriculum,
-        rating: s.rating || 0,
-        established: s.established || null,
-        student_count: s.studentCount || null,
-        phone: s.phone || null,
-        email: s.email || null,
-        description: s.description || null
+      // 1. Seed Institutions
+      const dbInstitutions = mockInstitutions.map(i => ({
+        id: i.id,
+        name: i.name,
+        city: i.city,
+        country: i.country,
+        acceptance_rate: i.acceptanceRate,
+        focus_popularity: i.focusPopularity,
+        scholarship_details: i.scholarshipDetails,
+        ethiopian_success: i.ethiopianSuccess,
+        rating: i.rating || 0,
+        phone: i.phone || null,
+        email: i.email || null,
+        description: i.description || null,
+        link: i.link || null
       }));
       // Clear current to prevent duplicates, then insert
-      await supabase.from('schools').delete().neq('id', 'placeholder');
-      const { error: schErr } = await supabase.from('schools').insert(dbSchools);
-      if (schErr) results.errors.push(`Schools: ${schErr.message}`);
-      else results.schools = dbSchools.length;
+      await supabase.from('institutions').delete().neq('id', 'placeholder');
+      const { error: schErr } = await supabase.from('institutions').insert(dbInstitutions);
+      if (schErr) results.errors.push(`Institutions: ${schErr.message}`);
+      else results.schools = dbInstitutions.length;
 
       // 2. Seed Scholarships
       const dbScholarships = mockScholarships.map(s => ({
