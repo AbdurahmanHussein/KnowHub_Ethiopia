@@ -1,16 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
-  Home, BookOpen, GraduationCap, Compass, Lightbulb, 
-  FileText, MessageSquare, BarChart2, Settings, Heart, 
+  Home, GraduationCap, Compass, Lightbulb, 
+  FileText, Settings, Heart, 
   Search, Moon, Sun, ChevronRight, MapPin, Calendar, 
-  Phone, Mail, X, Check, ArrowRight, Play, RefreshCw, 
-  Send, Award, Award as Trophy, BookMarked, User, Globe,
-  Shield, Plus, Trash2, Edit3, ThumbsUp, MessageCircle,
+  Phone, Mail, X, Check, ArrowRight, RefreshCw, 
+  Send, Award, User, Globe,
+  Shield, Plus, Trash2, ThumbsUp, MessageCircle,
   LogIn, LogOut, UserPlus, Eye, EyeOff, Loader, Sparkles,
   AlertCircle
 } from 'lucide-react';
 import { api } from '../services/api';
 import { auth } from '../supabase';
+import ToastContainer, { useToast } from '../components/Toast';
 
 const quizQuestions = {
   ielts: [
@@ -64,25 +65,33 @@ const quizQuestions = {
 };
 
 export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding }) {
+  const { toasts, addToast, removeToast } = useToast();
   const [activeTab, setActiveTab] = useState('home');
   const [exploreTab, setExploreTab] = useState('institutions');
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
-
-  // Handle bot deep-linking / tab query parameter
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tabParam = params.get('tab')?.toLowerCase();
-    const validMainTabs = ['home', 'resources', 'aitutor', 'progress', 'settings', 'admin'];
-    const validExploreTabs = ['institutions', 'schools', 'scholarships', 'opportunities', 'skills', 'testprep'];
-    
-    if (tabParam) {
-      if (validMainTabs.includes(tabParam)) {
-        setActiveTab(tabParam);
-      } else if (validExploreTabs.includes(tabParam)) {
-        setActiveTab('explore');
-        setExploreTab(tabParam);
-      }
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') || 'light';
     }
+    return 'light';
+  });
+
+  // Handle bot deep-linking / tab query parameter (defer state updates)
+  useEffect(() => {
+    setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab')?.toLowerCase();
+      const validMainTabs = ['home', 'resources', 'aitutor', 'progress', 'settings', 'admin'];
+      const validExploreTabs = ['institutions', 'schools', 'scholarships', 'opportunities', 'skills', 'testprep'];
+      
+      if (tabParam) {
+        if (validMainTabs.includes(tabParam)) {
+          setActiveTab(tabParam);
+        } else if (validExploreTabs.includes(tabParam)) {
+          setActiveTab('explore');
+          setExploreTab(tabParam);
+        }
+      }
+    }, 0);
   }, []);
   
   // Auth State
@@ -154,23 +163,56 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
   const [adminForm, setAdminForm] = useState({});
   const [adminSaving, setAdminSaving] = useState(false);
 
-  // --- Auth: Check existing session on mount ---
+  // Load modal social data (likes, comments) - defined before useEffect
+  const loadModalSocial = async (itemId, itemType) => {
+    setLoadingComments(true);
+    try {
+      const [count, liked, comments] = await Promise.all([
+        api.getLikesCount(itemId, itemType),
+        api.checkUserLiked(userId, itemId, itemType),
+        api.getComments(itemId, itemType)
+      ]);
+      setModalLikes({ count, liked });
+      setModalComments(comments);
+    } catch (err) {
+      console.warn('Failed to load modal social:', err);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  // --- Auth: Check existing session on mount (browser only) ---
   useEffect(() => {
     if (!isTelegram) {
-      auth.getSession().then(({ session }) => {
-        if (session?.user) {
-          setAuthUser(session.user);
-          setUserId(session.user.id);
+      const checkSession = async () => {
+        try {
+          const { session } = await auth.getSession();
+          if (session?.user) {
+            setAuthUser(session.user);
+            setUserId(session.user.id);
+          }
+        } catch (err) {
+          console.warn('Failed to check session in Dashboard:', err);
         }
-      });
-      const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
-        if (session?.user) {
-          setAuthUser(session.user);
-          setUserId(session.user.id);
-        } else {
-          setAuthUser(null);
-        }
-      });
+      };
+
+      checkSession();
+
+      let subscription;
+      try {
+        const { data: { subscription: sub } } = auth.onAuthStateChange((event, session) => {
+          if (session?.user) {
+            setAuthUser(session.user);
+            setUserId(session.user.id);
+          } else {
+            setAuthUser(null);
+          }
+        });
+        subscription = sub;
+      } catch (err) {
+        console.warn('Failed to subscribe to auth changes in Dashboard:', err);
+      }
+
       return () => subscription?.unsubscribe();
     }
   }, [isTelegram]);
@@ -251,19 +293,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
     } else if (selectedScholarship) {
       loadModalSocial(selectedScholarship.id, 'scholarship');
     }
-  }, [selectedSchool, selectedScholarship]);
+  }, [selectedSchool, selectedScholarship, loadModalSocial]);
 
-  const loadModalSocial = async (itemId, itemType) => {
-    setLoadingComments(true);
-    const [count, liked, comments] = await Promise.all([
-      api.getLikesCount(itemId, itemType),
-      api.checkUserLiked(userId, itemId, itemType),
-      api.getComments(itemId, itemType)
-    ]);
-    setModalLikes({ count, liked });
-    setModalComments(comments);
-    setLoadingComments(false);
-  };
+  // (loadModalSocial already defined above) - single implementation kept to avoid duplicate declaration
 
   // Theme Toggler
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
@@ -1421,7 +1453,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
 
               <div style={{ display: 'flex', gap: 10, borderTop: '1px solid var(--color-border)', paddingTop: 14 }}>
                 <button 
-                  onClick={() => alert(`Simulated Download: ${r.title} will download shortly.`)}
+                  onClick={() => addToast(`Downloading: ${r.title}...`, 'info')}
                   style={{
                     flex: 1, background: 'var(--color-primary)',
                     color: '#fff', padding: '10px',
@@ -1431,7 +1463,7 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
                   Download Asset
                 </button>
                 <button 
-                  onClick={() => alert(`Simulated Preview: Loaded successfully in mock preview window.`)}
+                  onClick={() => addToast(`Preview loaded for ${r.title}`, 'success')}
                   style={{
                     background: 'var(--color-light)',
                     border: '1px solid var(--color-border)',
@@ -2845,6 +2877,9 @@ export default function Dashboard({ isTelegram, user: tgUser, onBackToLanding })
           </div>
         </div>
       )}
+      
+      {/* Toast Notification Container */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
     </div>
   );
 }

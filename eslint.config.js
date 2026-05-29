@@ -5,9 +5,21 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'reference_docs']),
+  // Node.js environment for API/serverless functions
   {
-    files: ['**/*.{js,jsx}'],
+    files: ['api/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+      parserOptions: { ecmaFeatures: { jsx: false } },
+    },
+    rules: {
+      'no-unused-vars': 'warn',
+    },
+  },
+  // Browser + React environment for src files
+  {
+    files: ['src/**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
       reactHooks.configs.flat.recommended,

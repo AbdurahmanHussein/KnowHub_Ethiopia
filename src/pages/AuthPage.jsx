@@ -24,17 +24,34 @@ export default function AuthPage({ onAuthSuccess, onBack }) {
         const { data, error: signUpErr } = await auth.signUp(email, password, { name });
         if (signUpErr) throw signUpErr;
 
-        if (data?.user) {
-          // Create profile in profiles table
-          await api.saveProfile(data.user.id, {
-            username: email,
-            firstName: name || 'Student',
-            gradeLevel: 'all',
-            preferredSubjects: [],
-            language: 'en',
-            isAdmin: false
-          });
-          onAuthSuccess();
+        // Handle email verification flow: user may not be confirmed yet
+        const userId = data?.user?.id;
+        if (userId) {
+          try {
+            // Create profile in profiles table
+            await api.saveProfile(userId, {
+              username: email,
+              firstName: name || 'Student',
+              gradeLevel: 'all',
+              preferredSubjects: [],
+              language: 'en',
+              isAdmin: false
+            });
+          } catch (profileErr) {
+            console.warn('Failed to create profile, but signup succeeded:', profileErr);
+          }
+          
+          // Check if email confirmation is required
+          if (data.user?.confirmed_at) {
+            onAuthSuccess(); // Immediately confirmed
+          } else {
+            // Email confirmation required
+            setError('Please check your email to confirm your account.');
+            setLoading(false);
+            return;
+          }
+        } else {
+          throw new Error('Signup succeeded but user ID not returned');
         }
       } else {
         const { data, error: signInErr } = await auth.signIn(email, password);
@@ -42,6 +59,8 @@ export default function AuthPage({ onAuthSuccess, onBack }) {
 
         if (data?.user) {
           onAuthSuccess();
+        } else {
+          throw new Error('Sign-in succeeded but no user data returned');
         }
       }
     } catch (err) {

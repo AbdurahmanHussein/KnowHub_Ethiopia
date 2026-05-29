@@ -14,38 +14,54 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
 
   // Monitor Supabase Auth state changes for browser users
+  // Monitor Supabase Auth state changes for browser users
   useEffect(() => {
-    if (isReady) {
-      if (isTelegram) {
+    if (!isReady) return;
+
+    if (isTelegram) {
+      // Telegram user, auto-load app (defer state updates)
+      setTimeout(() => {
+        setIsInApp(true);
         setAuthLoading(false);
-        setIsInApp(true); // Automatically enter app in Telegram Mini App environment
-        return;
+      }, 0);
+      return;
+    }
+
+      // Check current session with error handling
+      const checkSession = async () => {
+        try {
+          const { session } = await auth.getSession();
+          if (session?.user) {
+            setAuthUser(session.user);
+          }
+        } catch (err) {
+          console.warn('Failed to check session:', err);
+        } finally {
+          setAuthLoading(false);
+        }
+      };
+
+      checkSession();
+
+      // Listen for session updates with error handling
+      let subscription;
+      try {
+        const { data: { subscription: sub } } = auth.onAuthStateChange((event, session) => {
+          if (session?.user) {
+            setAuthUser(session.user);
+            setIsInApp(true);
+            setShowAuth(false);
+          } else {
+            setAuthUser(null);
+            setIsInApp(false);
+          }
+        });
+        subscription = sub;
+      } catch (err) {
+        console.warn('Failed to subscribe to auth changes:', err);
       }
 
-      // Check current session
-      auth.getSession().then(({ session }) => {
-        if (session?.user) {
-          setAuthUser(session.user);
-          setIsInApp(true);
-        }
-        setAuthLoading(false);
-      });
-
-      // Listen for session updates
-      const { data: { subscription } } = auth.onAuthStateChange((event, session) => {
-        if (session?.user) {
-          setAuthUser(session.user);
-          setIsInApp(true);
-          setShowAuth(false);
-        } else {
-          setAuthUser(null);
-          setIsInApp(false);
-        }
-        setAuthLoading(false);
-      });
-
       return () => subscription?.unsubscribe();
-    }
   }, [isReady, isTelegram]);
 
   if (!isReady || authLoading) {

@@ -12,8 +12,9 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    return res.status(200).json({ ok: true });
   }
 
   const { message, history } = req.body;
@@ -103,7 +104,9 @@ Keep responses concise (under 200 words), encouraging, and practical. Use simple
       try {
         const jsonErr = JSON.parse(errorText);
         parsedError = jsonErr?.error?.message || errorText;
-      } catch {}
+      } catch {
+        // Keep original error text if JSON parsing fails
+      }
       return res.status(200).json({
         reply: `I'm having trouble connecting right now (Gemini API Error ${response.status}: ${parsedError}). Please try again in a moment, or explore the Institutions and Scholarships tabs for immediate help!`,
         offline: true

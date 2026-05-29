@@ -145,7 +145,7 @@ export const api = {
     }
   },
 
-  // --- Bookmarks Service ---
+  // --- Bookmarks Service (guarded with typeof window check) ---
   getBookmarks: async (userId) => {
     if (!userId) return [];
     try {
@@ -157,9 +157,12 @@ export const api = {
       return data || [];
     } catch (err) {
       console.warn('Failed to fetch bookmarks:', err.message);
-      // Fallback: localStorage
-      const local = localStorage.getItem(`bookmarks_${userId}`);
-      return local ? JSON.parse(local) : [];
+      // Fallback: localStorage (guarded for server-side rendering)
+      if (typeof window !== 'undefined') {
+        const local = localStorage.getItem(`bookmarks_${userId}`);
+        return local ? JSON.parse(local) : [];
+      }
+      return [];
     }
   },
 
@@ -176,20 +179,24 @@ export const api = {
       if (error) throw error;
       
       // Update local storage too for redundancy
-      const current = await api.getBookmarks(userId);
-      if (!current.some(b => b.item_id === itemId && b.item_type === itemType)) {
-        const updated = [...current, { ...bookmarkData, id: Date.now() }];
-        localStorage.setItem(`bookmarks_${userId}`, JSON.stringify(updated));
+      if (typeof window !== 'undefined') {
+        const current = await api.getBookmarks(userId);
+        if (!current.some(b => b.item_id === itemId && b.item_type === itemType)) {
+          const updated = [...current, { ...bookmarkData, id: Date.now() }];
+          localStorage.setItem(`bookmarks_${userId}`, JSON.stringify(updated));
+        }
       }
       return true;
     } catch (err) {
       console.warn('Failed to save bookmark in DB, saving locally:', err.message);
-      const current = localStorage.getItem(`bookmarks_${userId}`) 
-        ? JSON.parse(localStorage.getItem(`bookmarks_${userId}`)) 
-        : [];
-      if (!current.some(b => b.item_id === itemId && b.item_type === itemType)) {
-        const updated = [...current, { ...bookmarkData, id: Date.now() }];
-        localStorage.setItem(`bookmarks_${userId}`, JSON.stringify(updated));
+      if (typeof window !== 'undefined') {
+        const current = localStorage.getItem(`bookmarks_${userId}`) 
+          ? JSON.parse(localStorage.getItem(`bookmarks_${userId}`)) 
+          : [];
+        if (!current.some(b => b.item_id === itemId && b.item_type === itemType)) {
+          const updated = [...current, { ...bookmarkData, id: Date.now() }];
+          localStorage.setItem(`bookmarks_${userId}`, JSON.stringify(updated));
+        }
       }
       return true;
     }
@@ -207,24 +214,28 @@ export const api = {
       if (error) throw error;
 
       // Update local storage
-      const local = localStorage.getItem(`bookmarks_${userId}`);
-      if (local) {
-        const updated = JSON.parse(local).filter(b => !(b.item_id === itemId && b.item_type === itemType));
-        localStorage.setItem(`bookmarks_${userId}`, JSON.stringify(updated));
+      if (typeof window !== 'undefined') {
+        const local = localStorage.getItem(`bookmarks_${userId}`);
+        if (local) {
+          const updated = JSON.parse(local).filter(b => !(b.item_id === itemId && b.item_type === itemType));
+          localStorage.setItem(`bookmarks_${userId}`, JSON.stringify(updated));
+        }
       }
       return true;
     } catch (err) {
       console.warn('Failed to delete bookmark in DB, removing locally:', err.message);
-      const local = localStorage.getItem(`bookmarks_${userId}`);
-      if (local) {
-        const updated = JSON.parse(local).filter(b => !(b.item_id === itemId && b.item_type === itemType));
-        localStorage.setItem(`bookmarks_${userId}`, JSON.stringify(updated));
+      if (typeof window !== 'undefined') {
+        const local = localStorage.getItem(`bookmarks_${userId}`);
+        if (local) {
+          const updated = JSON.parse(local).filter(b => !(b.item_id === itemId && b.item_type === itemType));
+          localStorage.setItem(`bookmarks_${userId}`, JSON.stringify(updated));
+        }
       }
       return true;
     }
   },
 
-  // --- Profile Settings ---
+  // --- Profile Settings (guarded with typeof window check) ---
   getProfile: async (userId, defaultProfile = {}) => {
     if (!userId) return defaultProfile;
     try {
@@ -244,8 +255,11 @@ export const api = {
         isAdmin: data.is_admin || false
       };
     } catch {
-      const local = localStorage.getItem(`profile_${userId}`);
-      return local ? JSON.parse(local) : defaultProfile;
+      if (typeof window !== 'undefined') {
+        const local = localStorage.getItem(`profile_${userId}`);
+        return local ? JSON.parse(local) : defaultProfile;
+      }
+      return defaultProfile;
     }
   },
 
@@ -266,11 +280,15 @@ export const api = {
       if (error) throw error;
 
       // Store in localStorage for backup
-      localStorage.setItem(`profile_${userId}`, JSON.stringify(profile));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`profile_${userId}`, JSON.stringify(profile));
+      }
       return true;
     } catch (err) {
       console.warn('Failed to upsert profile in DB, saving locally:', err.message);
-      localStorage.setItem(`profile_${userId}`, JSON.stringify(profile));
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(`profile_${userId}`, JSON.stringify(profile));
+      }
       return true;
     }
   },
@@ -494,11 +512,15 @@ export const api = {
   },
 
   // ================================================
-  // Phase 3: Gemini AI Tutor
+  // Phase 3: Gemini AI Tutor (configurable endpoint)
   // ================================================
   askTutor: async (message, history = []) => {
     try {
-      const res = await fetch('/api/tutor', {
+      // Support configurable API base path for flexibility (default: /api/tutor)
+      const apiBase = import.meta.env.VITE_API_BASE || '';
+      const tutorEndpoint = `${apiBase}/api/tutor`;
+      
+      const res = await fetch(tutorEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message, history })
